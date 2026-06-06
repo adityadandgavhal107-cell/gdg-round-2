@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>FireGuard — Camera Stream</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📹</text></svg>" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0f;
+      color: #e8e8f0;
+      font-family: 'Inter', sans-serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .cam-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      background: rgba(10,10,15,0.98);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      z-index: 10;
+    }
+
+    .cam-logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; }
+    .cam-logo .flame { font-size: 20px; filter: drop-shadow(0 0 6px #ff2d2d); }
+    .cam-logo .brand { background: linear-gradient(135deg, #ff2d2d, #ff6b1a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+    .cam-room-badge {
+      padding: 5px 14px;
+      background: rgba(78,158,255,0.1);
+      border: 1px solid rgba(78,158,255,0.4);
+      border-radius: 20px;
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #4e9eff;
+    }
+
+    .cam-body {
+      flex: 1;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
+
+    #cam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cam-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* Scanning animation */
+    .cam-scan-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(78,158,255,0.6), transparent);
+      animation: scan 3s linear infinite;
+      z-index: 6;
+    }
+
+    @keyframes scan {
+      0%   { top: 0%; }
+      100% { top: 100%; }
+    }
+
+    /* Corner frame */
+    .cam-frame {
+      position: absolute;
+      inset: 16px;
+      pointer-events: none;
+      z-index: 7;
+    }
+
+    .corner {
+      position: absolute;
+      width: 24px; height: 24px;
+      border-color: rgba(78,158,255,0.6);
+      border-style: solid;
+    }
+
+    .corner.tl { top: 0; left: 0; border-width: 3px 0 0 3px; }
+    .corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; }
+    .corner.bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; }
+    .corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; }
+
+    .cam-footer {
+      padding: 12px 18px;
+      background: rgba(10,10,15,0.98);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status-pill.connecting { background: rgba(255,215,0,0.1); border: 1px solid rgba(255,215,0,0.4); color: #ffd700; }
+    .status-pill.streaming  { background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.4); color: #00ff88; }
+    .status-pill.error      { background: rgba(255,45,45,0.1);  border: 1px solid rgba(255,45,45,0.4);  color: #ff2d2d; }
+    .status-pill.waiting    { background: rgba(78,158,255,0.1); border: 1px solid rgba(78,158,255,0.4); color: #4e9eff; }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .btn-cam {
+      padding: 9px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05);
+      color: #e8e8f0;
+      font-size: 14px;
+      cursor: pointer;
+      transition: 0.2s;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+    }
+
+    .btn-cam:hover { background: rgba(255,255,255,0.1); }
+    .btn-cam:active { transform: scale(0.97); }
+
+    .btn-cam.danger { background: rgba(255,45,45,0.1); border-color: rgba(255,45,45,0.4); color: #ff2d2d; }
+
+    .cam-waiting-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: #000;
+      z-index: 4;
+    }
+
+    .waiting-icon { font-size: 56px; }
+    .waiting-title { font-size: 18px; font-weight: 700; }
+    .waiting-sub { font-size: 13px; color: rgba(255,255,255,0.4); text-align: center; max-width: 260px; line-height: 1.6; }
+
+    .btn-start {
+      padding: 14px 36px;
+      background: linear-gradient(135deg, #ff2d2d, #ff6b1a);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s;
+      margin-top: 8px;
+    }
+
+    .btn-start:hover { opacity: 0.85; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,45,45,0.3); }
+    .btn-start:active { transform: scale(0.97); }
+
+    .torch-btn {
+      background: rgba(255,215,0,0.1);
+      border-color: rgba(255,215,0,0.3);
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="cam-header">
+    <div class="cam-logo">
+      <span class="flame">🔥</span>
+      <span class="brand">FireGuard</span>
+    </div>
+    <div class="cam-room-badge" id="room-badge">📹 Room — —</div>
+  </div>
+
+  <div class="cam-body">
+    <video id="cam-video" playsinline autoplay muted></video>
+
+    <div class="cam-overlay">
+      <div class="cam-scan-line" id="scan-line" style="display:none;"></div>
+      <div class="cam-frame" id="cam-frame" style="display:none;">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+      </div>
+    </div>
+
+    <div class="cam-waiting-state" id="waiting-state">
+      <span class="waiting-icon">📹</span>
+      <div class="waiting-title">Camera Stream</div>
+      <div class="waiting-sub">This device will become a live surveillance camera for the hotel admin dashboard.</div>
+      <button class="btn-start" id="btn-start">🎥 Start Streaming</button>
+    </div>
+  </div>
+
+  <div class="cam-footer">
+    <div class="status-pill waiting" id="status-pill">
+      <div class="dot"></div>
+      <span id="status-text">Ready to stream</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn-cam torch-btn" id="btn-torch" style="display:none;">🔦</button>
+      <button class="btn-cam" id="btn-switch" style="display:none;">🔄 Flip</button>
+      <button class="btn-cam danger" id="btn-stop" style="display:none;">⏹ Stop</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/cam.js"></script>
+</body>
+</html>

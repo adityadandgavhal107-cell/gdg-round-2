@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <title>FireGuard Guest</title>
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Inter',sans-serif;}
+
+.phone{
+  width:375px;min-height:720px;
+  background:#0d0d1a;
+  border-radius:40px;
+  border:2px solid rgba(255,255,255,0.08);
+  overflow:hidden;
+  position:relative;
+  box-shadow:0 40px 80px rgba(0,0,0,0.6);
+  display:flex;flex-direction:column;
+}
+
+/* STATUS BAR */
+.statusbar{
+  padding:12px 24px 8px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:#0d0d1a;
+}
+.statusbar-left{display:flex;align-items:center;gap:8px;}
+.guest-icon{
+  width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(135deg,#2563eb,#7c3aed);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.statusbar-title{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;color:#fff;line-height:1.2;}
+.statusbar-right{display:flex;align-items:center;gap:6px;}
+.wifi-icon svg{color:#fff;}
+
+/* INFO STRIP */
+.info-strip{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:8px;padding:4px 16px 8px;
+}
+.info-pill{
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:10px;padding:10px 14px;
+  display:flex;align-items:center;gap:8px;
+}
+.info-pill-icon{font-size:14px;opacity:0.7;}
+.info-pill-text{font-size:11px;font-weight:600;color:#a0aec0;letter-spacing:0.3px;}
+.info-pill-text span{color:#63b3ed;display:block;}
+
+/* TILES */
+.tiles{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:8px;padding:0 16px 12px;
+}
+.tile{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:10px;padding:12px 14px;
+}
+.tile-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#4a5568;font-weight:600;margin-bottom:6px;}
+.tile-value{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:#e2e8f0;}
+
+/* MAIN CONTENT */
+.main{flex:1;padding:0 16px;overflow:hidden; display:flex; flex-direction:column;}
+
+/* SOS CARD */
+.sos-card{
+  border-radius:18px;padding:28px 20px 22px;
+  display:flex;flex-direction:column;align-items:center;
+  text-align:center;min-height:220px;justify-content:center;
+  position:relative;overflow:hidden;
+  transition:transform 0.1s;
+}
+.sos-card.fire{background:linear-gradient(145deg,#5a0a0a,#8b1a1a,#c0392b);}
+.sos-card.health{background:linear-gradient(145deg,#0a2a5a,#1a4a8b,#2980b9);}
+.sos-card.security{background:linear-gradient(145deg,#2a0a5a,#4a1a8b,#7b3aed);}
+
+.sos-card::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 30%, rgba(255,255,255,0.08), transparent 70%);
+  pointer-events:none;
+}
+
+.sos-card-icon{
+  width:64px;height:64px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;margin-bottom:14px;
+  animation:glow 2s ease-in-out infinite;
+}
+.fire .sos-card-icon{background:rgba(239,68,68,0.25);box-shadow:0 0 0 0 rgba(239,68,68,0.5);}
+.health .sos-card-icon{background:rgba(59,130,246,0.25);box-shadow:0 0 0 0 rgba(59,130,246,0.5);}
+.security .sos-card-icon{background:rgba(139,92,246,0.25);box-shadow:0 0 0 0 rgba(139,92,246,0.5);}
+
+@keyframes glow{
+  0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5);}
+  50%{box-shadow:0 0 20px 8px rgba(239,68,68,0.2);}
+}
+.health .sos-card-icon{animation-name:glow-blue;}
+@keyframes glow-blue{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5);}50%{box-shadow:0 0 20px 8px rgba(59,130,246,0.2);}}
+.security .sos-card-icon{animation-name:glow-purple;}
+@keyframes glow-purple{0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,0.5);}50%{box-shadow:0 0 20px 8px rgba(139,92,246,0.2);}}
+
+.sos-card-name{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;letter-spacing:2px;margin-bottom:6px;}
+.fire .sos-card-name{color:#fc8181;}
+.health .sos-card-name{color:#63b3ed;}
+.security .sos-card-name{color:#b794f4;}
+
+.sos-card-desc{font-size:12px;color:rgba(255,255,255,0.5);line-height:1.6;margin-bottom:18px;}
+
+.trigger-btn{
+  background:linear-gradient(135deg,#fc8181,#e53e3e);
+  border:none;border-radius:30px;
+  padding:14px 48px;
+  font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;
+  letter-spacing:2px;color:#fff;cursor:pointer;
+  box-shadow:0 6px 20px rgba(229,62,62,0.4);
+  transition:transform 0.1s,box-shadow 0.1s;
+  -webkit-tap-highlight-color:transparent;
+}
+.trigger-btn:active{transform:scale(0.95);box-shadow:0 2px 10px rgba(229,62,62,0.3);}
+.health .trigger-btn{background:linear-gradient(135deg,#63b3ed,#2b6cb0);box-shadow:0 6px 20px rgba(43,108,176,0.4);}
+.health .trigger-btn:active{box-shadow:0 2px 10px rgba(43,108,176,0.3);}
+.security .trigger-btn{background:linear-gradient(135deg,#b794f4,#6b46c1);box-shadow:0 6px 20px rgba(107,70,193,0.4);}
+.security .trigger-btn:active{box-shadow:0 2px 10px rgba(107,70,193,0.3);}
+
+/* DOTS NAV */
+.dots{display:flex;justify-content:center;gap:6px;padding:10px 0 8px;}
+.dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);transition:all 0.3s;}
+.dot.active{width:20px;border-radius:3px;background:#e53e3e;}
+.dot.active.blue{background:#2b6cb0;}
+.dot.active.purple{background:#6b46c1;}
+
+/* BOTTOM NAV */
+.bottomnav{
+  display:flex;
+  border-top:1px solid rgba(255,255,255,0.07);
+  background:#0d0d1a;
+}
+.nav-item{
+  flex:1;padding:10px 0 12px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:opacity 0.15s;
+}
+.nav-item:active{opacity:0.6;}
+.nav-icon{font-size:18px;opacity:0.5;}
+.nav-label{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#4a5568;font-weight:600;}
+.nav-item.active .nav-icon{opacity:1;}
+.nav-item.active .nav-label{color:#e53e3e;}
+
+/* PAGES */
+.page{display:none; flex:1; flex-direction:column;}
+.page.active{display:flex;}
+
+/* GUIDELINES PAGE */
+.guidelines-content{padding:0 16px 16px;}
+.guidelines-title{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:12px;padding-top:4px;}
+.guideline-item{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:12px;padding:14px;margin-bottom:8px;
+  display:flex;gap:12px;align-items:flex-start;
+}
+.gi-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.gi-title{font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:3px;}
+.gi-desc{font-size:11px;color:#718096;line-height:1.5;}
+.gi-tag{
+  display:inline-block;font-size:9px;letter-spacing:1px;text-transform:uppercase;
+  padding:2px 7px;border-radius:20px;margin-bottom:4px;font-weight:600;
+}
+.tag-fire{background:rgba(239,68,68,0.15);color:#fc8181;}
+.tag-health{background:rgba(59,130,246,0.15);color:#63b3ed;}
+.tag-security{background:rgba(139,92,246,0.15);color:#b794f4;}
+
+/* OPERATOR PAGE */
+.operator-content{padding:0 16px 16px;}
+.op-card{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:14px;padding:18px;margin-bottom:10px;
+  display:flex;align-items:center;gap:14px;
+}
+.op-avatar{
+  width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex-shrink:0;
+}
+.op-info{flex:1;}
+.op-name{font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:2px;}
+.op-role{font-size:11px;color:#718096;}
+.op-call-btn{
+  background:rgba(72,187,120,0.15);
+  border:1px solid rgba(72,187,120,0.3);
+  border-radius:30px;padding:8px 16px;
+  font-size:11px;font-weight:600;color:#68d391;
+  cursor:pointer;letter-spacing:0.5px;
+  transition:all 0.15s;white-space:nowrap;
+}
+.op-call-btn:active{background:rgba(72,187,120,0.3);}
+
+/* OVERLAY */
+.overlay{
+  position:absolute;inset:0;z-index:50;
+  background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);
+  display:none;align-items:flex-end;justify-content:center;
+  padding:20px;
+}
+.overlay.open{display:flex;}
+
+.confirm-sheet{
+  background:#161628;
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:24px;padding:28px 24px;
+  width:100%;animation:slideUp 0.25s ease;
+}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+.cs-icon{font-size:44px;text-align:center;margin-bottom:12px;}
+.cs-title{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:#fff;text-align:center;margin-bottom:8px;}
+.cs-desc{font-size:12px;color:#718096;text-align:center;line-height:1.6;margin-bottom:22px;}
+.cs-warning{
+  background:rgba(255,200,0,0.07);border:1px solid rgba(255,200,0,0.15);
+  border-radius:10px;padding:10px 14px;margin-bottom:20px;
+  font-size:11px;color:#f6e05e;line-height:1.5;text-align:center;
+}
+
+.countdown-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;}
+.countdown-circle{
+  width:54px;height:54px;border-radius:50%;
+  background:rgba(239,68,68,0.1);border:2px solid rgba(239,68,68,0.4);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:#fc8181;
+}
+.countdown-label{font-size:12px;color:#718096;}
+
+.cs-btns{display:flex;gap:10px;}
+.cs-cancel{
+  flex:1;padding:14px;border-radius:14px;
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
+  color:#a0aec0;font-size:13px;font-weight:600;cursor:pointer;
+  font-family:'Inter',sans-serif;
+}
+.cs-confirm{
+  flex:1;padding:14px;border-radius:14px;border:none;
+  font-size:13px;font-weight:700;cursor:pointer;
+  font-family:'Inter',sans-serif;letter-spacing:0.5px;
+  transition:transform 0.1s;
+}
+.cs-confirm:active{transform:scale(0.97);}
+.cs-confirm.fire{background:linear-gradient(135deg,#e53e3e,#c53030);color:#fff;}
+.cs-confirm.health{background:linear-gradient(135deg,#2b6cb0,#2c5282);color:#fff;}
+.cs-confirm.security{background:linear-gradient(135deg,#6b46c1,#553c9a);color:#fff;}
+
+/* DISPATCHED OVERLAY */
+.dispatched-overlay{
+  position:absolute;inset:0;z-index:60;
+  background:#0d0d1a;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 24px;text-align:center;
+}
+.dispatched-overlay.open{display:flex;}
+
+.dispatch-ring{
+  width:100px;height:100px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:44px;margin-bottom:24px;
+  position:relative;
+}
+.dispatch-ring::before,.dispatch-ring::after{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  animation:ripple 1.5s ease-out infinite;
+}
+.dispatch-ring::after{animation-delay:0.75s;}
+.fire-dispatch .dispatch-ring{background:rgba(239,68,68,0.15);}
+.fire-dispatch .dispatch-ring::before,.fire-dispatch .dispatch-ring::after{border:2px solid rgba(239,68,68,0.4);}
+.health-dispatch .dispatch-ring{background:rgba(59,130,246,0.15);}
+.health-dispatch .dispatch-ring::before,.health-dispatch .dispatch-ring::after{border:2px solid rgba(59,130,246,0.4);}
+.security-dispatch .dispatch-ring{background:rgba(139,92,246,0.15);}
+.security-dispatch .dispatch-ring::before,.security-dispatch .dispatch-ring::after{border:2px solid rgba(139,92,246,0.4);}
+
+@keyframes ripple{
+  from{transform:scale(1);opacity:1;}
+  to{transform:scale(2);opacity:0;}
+}
+
+.dispatch-status{
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:8px;font-weight:600;
+}
+.fire-dispatch .dispatch-status{color:#fc8181;}
+.health-dispatch .dispatch-status{color:#63b3ed;}
+.security-dispatch .dispatch-status{color:#b794f4;}
+
+.dispatch-title{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;color:#fff;margin-bottom:10px;}
+.dispatch-sub{font-size:13px;color:#718096;line-height:1.6;margin-bottom:8px;}
+.dispatch-eta{
+  font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:600;
+  margin-bottom:28px;
+}
+.fire-dispatch .dispatch-eta{color:#fc8181;}
+.health-dispatch .dispatch-eta{color:#63b3ed;}
+.security-dispatch .dispatch-eta{color:#b794f4;}
+
+.dispatch-instructions{
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+  border-radius:14px;padding:14px 16px;margin-bottom:24px;width:100%;
+  text-align:left;
+}
+.di-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#4a5568;margin-bottom:8px;font-weight:600;}
+.di-item{font-size:12px;color:#a0aec0;line-height:1.8;display:flex;gap:8px;}
+.di-item::before{content:'›';color:#718096;}
+
+.dismiss-btn{
+  border-radius:30px;padding:14px 40px;border:none;
+  font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;
+  letter-spacing:1px;cursor:pointer;color:#fff;
+}
+.fire-dispatch .dismiss-btn{background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.3);color:#fc8181;}
+.health-dispatch .dismiss-btn{background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.3);color:#63b3ed;}
+.security-dispatch .dismiss-btn{background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.3);color:#b794f4;}
+
+/* CALL OVERLAY */
+.call-overlay{
+  position:absolute;inset:0;z-index:70;
+  background:#0d0d1a;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:40px 24px;text-align:center;
+}
+.call-overlay.open{display:flex;}
+.call-avatar{
+  width:80px;height:80px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:36px;margin-bottom:16px;
+  background:rgba(72,187,120,0.1);border:2px solid rgba(72,187,120,0.3);
+  animation:pulse-call 1.5s ease-in-out infinite;
+}
+@keyframes pulse-call{0%,100%{box-shadow:0 0 0 0 rgba(72,187,120,0.3);}50%{box-shadow:0 0 0 16px rgba(72,187,120,0);}}
+.call-name{font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:#fff;margin-bottom:4px;}
+.call-status{font-size:13px;color:#68d391;margin-bottom:8px;}
+.call-timer{font-family:'Rajdhani',sans-serif;font-size:18px;color:#718096;margin-bottom:40px;}
+.call-endBtn{
+  background:#e53e3e;border:none;border-radius:50%;
+  width:64px;height:64px;font-size:24px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+</style>
+  </head>
+  <body>
+
+<div id="root-container" style="display: none; position: fixed; inset: 0; z-index: 9999; background: #050508;">
+  <div id="root" style="width: 100%; height: 100%; display: flex; flex-direction: column;"></div>
+  <button onclick="exitMap()" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000; padding: 14px 28px; background: #e53e3e; color: white; border: none; border-radius: 30px; font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(229,62,62,0.5);">Close Evacuation Map</button>
+</div>
+
+<div class="phone">
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <div class="statusbar-left">
+      <div class="guest-icon">👤</div>
+      <div class="statusbar-title">Room 408 · James<br>Mathew</div>
+    </div>
+    <div class="statusbar-right">
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+        <path d="M9 2.5C11.8 2.5 14.3 3.7 16 5.7L17.5 4C15.4 1.5 12.4 0 9 0C5.6 0 2.6 1.5 0.5 4L2 5.7C3.7 3.7 6.2 2.5 9 2.5Z" fill="white" opacity="0.5"/>
+        <path d="M9 6C10.9 6 12.6 6.8 13.8 8.1L15.3 6.4C13.7 4.7 11.5 3.5 9 3.5C6.5 3.5 4.3 4.7 2.7 6.4L4.2 8.1C5.4 6.8 7.1 6 9 6Z" fill="white" opacity="0.7"/>
+        <circle cx="9" cy="12" r="2" fill="white"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- INFO STRIP -->
+  <div class="info-strip">
+    <div class="info-pill">
+      <div class="info-pill-icon">📍</div>
+      <div class="info-pill-text">GPS Signal:<span>Active</span></div>
+    </div>
+    <div class="info-pill">
+      <div class="info-pill-icon">🔒</div>
+      <div class="info-pill-text">Secure<span>Line</span></div>
+    </div>
+  </div>
+
+  <!-- TILES -->
+  <div class="tiles">
+    <div class="tile"><div class="tile-label">Check-Out</div><div class="tile-value">Apr 28</div></div>
+    <div class="tile"><div class="tile-label">Nights</div><div class="tile-value">04</div></div>
+    <div class="tile"><div class="tile-label">Floor</div><div class="tile-value">04</div></div>
+    <div class="tile"><div class="tile-label">Emergency Ext</div><div class="tile-value">911</div></div>
+  </div>
+
+  <!-- PAGES -->
+  <div class="main">
+
+    <!-- SOS PAGE -->
+    <div id="page-sos" class="page active">
+      <div id="sos-card" class="sos-card fire">
+        <div class="sos-card-icon" id="sos-icon">🔥</div>
+        <div class="sos-card-name" id="sos-name">FIRE</div>
+        <div class="sos-card-desc" id="sos-desc">Smoke, flames, or gas leak detected.</div>
+        <button class="trigger-btn" id="trigger-btn" onclick="openConfirm()">TRIGGER</button>
+      </div>
+      <div class="dots">
+        <div class="dot active" id="dot0" onclick="switchSOS(0)"></div>
+        <div class="dot" id="dot1" onclick="switchSOS(1)"></div>
+        <div class="dot" id="dot2" onclick="switchSOS(2)"></div>
+      </div>
+    </div>
+
+    <!-- GUIDELINES PAGE -->
+    <div id="page-guidelines" class="page">
+      <div class="guidelines-content">
+        <div class="guidelines-title">Emergency Guidelines</div>
+
+        <div class="guideline-item">
+          <div class="gi-icon">🔥</div>
+          <div>
+            <div class="gi-tag tag-fire">Fire Alert</div>
+            <div class="gi-title">If you detect fire or smoke</div>
+            <div class="gi-desc">Stay low, feel the door before opening. Use stairwells — never the elevator. Assemble at the lobby.</div>
+          </div>
+        </div>
+
+        <div class="guideline-item">
+          <div class="gi-icon">⚕️</div>
+          <div>
+            <div class="gi-tag tag-health">Medical</div>
+            <div class="gi-title">Medical Emergency</div>
+            <div class="gi-desc">Do not move the patient. Keep them calm. Unlock the door and wait for medical staff. Note symptoms.</div>
+          </div>
+        </div>
+
+        <div class="guideline-item">
+          <div class="gi-icon">🛡️</div>
+          <div>
+            <div class="gi-tag tag-security">Security</div>
+            <div class="gi-title">Robbery or Threat</div>
+            <div class="gi-desc">Do not resist. Silent alarm notifies security. Lock the door if safe. Stay quiet. Do not use voice calls.</div>
+          </div>
+        </div>
+
+        <div class="guideline-item">
+          <div class="gi-icon">📋</div>
+          <div>
+            <div class="gi-title">False Alarm Policy</div>
+            <div class="gi-desc">False alerts may incur a ₹5,000 charge. Always press Cancel if triggered by mistake within 5 seconds.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
+
+
+    <!-- OPERATOR PAGE -->
+    <div id="page-operator" class="page">
+      <div class="operator-content">
+        <div class="guidelines-title">Contact Operator</div>
+
+        <div class="op-card">
+          <div class="op-avatar" style="background:rgba(59,130,246,0.15);">👩‍⚕️</div>
+          <div class="op-info">
+            <div class="op-name">Dr. Meena Pillai</div>
+            <div class="op-role">On-call Medical Officer</div>
+          </div>
+          <button class="op-call-btn" onclick="startCall('Dr. Meena Pillai','Medical Officer')">📞 Call</button>
+        </div>
+
+        <div class="op-card">
+          <div class="op-avatar" style="background:rgba(239,68,68,0.15);">👨‍🚒</div>
+          <div class="op-info">
+            <div class="op-name">Fire Safety Desk</div>
+            <div class="op-role">24/7 Fire Response Unit</div>
+          </div>
+          <button class="op-call-btn" onclick="startCall('Fire Safety Desk','Fire Response')">📞 Call</button>
+        </div>
+
+        <div class="op-card">
+          <div class="op-avatar" style="background:rgba(139,92,246,0.15);">👮</div>
+          <div class="op-info">
+            <div class="op-name">Security Command</div>
+            <div class="op-role">Hotel Security & Surveillance</div>
+          </div>
+          <button class="op-call-btn" onclick="startCall('Security Command','Hotel Security')">📞 Call</button>
+        </div>
+
+        <div class="op-card">
+          <div class="op-avatar" style="background:rgba(200,169,110,0.15);">🛎️</div>
+          <div class="op-info">
+            <div class="op-name">Front Desk</div>
+            <div class="op-role">General Assistance · Ext. 000</div>
+          </div>
+          <button class="op-call-btn" onclick="startCall('Front Desk','Guest Services')">📞 Call</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottomnav">
+    <div class="nav-item active" id="nav-sos" onclick="showTab('sos')">
+      <div class="nav-icon">🆘</div>
+      <div class="nav-label">Emergency SOS</div>
+    </div>
+    <div class="nav-item" id="nav-guidelines" onclick="showTab('guidelines')">
+      <div class="nav-icon">📋</div>
+      <div class="nav-label">Guidelines</div>
+    </div>
+    <div class="nav-item" id="nav-operator" onclick="showTab('operator')">
+      <div class="nav-icon">📞</div>
+      <div class="nav-label">Operator</div>
+    </div>
+  
+    <div class="nav-item" id="nav-map" onclick="showTab('map')">
+      <div class="nav-icon">🗺️</div>
+      <div class="nav-label">Evac Map</div>
+    </div>
+  </div>
+
+  <!-- CONFIRM OVERLAY -->
+  <div class="overlay" id="confirm-overlay">
+    <div class="confirm-sheet">
+      <div class="cs-icon" id="cs-icon">🔥</div>
+      <div class="cs-title" id="cs-title">Send Fire Alert?</div>
+      <div class="cs-desc" id="cs-desc">This will immediately alert the fire response team and initiate evacuation protocol for Floor 4.</div>
+      <div class="cs-warning" id="cs-warning">⚠️ False alarms may result in a ₹5,000 fee. Only trigger in a real emergency.</div>
+      <div class="countdown-wrap">
+        <div class="countdown-circle" id="countdown">5</div>
+        <div class="countdown-label">seconds to auto-cancel</div>
+      </div>
+      <div class="cs-btns">
+        <button class="cs-cancel" onclick="closeConfirm()">Cancel</button>
+        <button class="cs-confirm fire" id="cs-confirm-btn" onclick="dispatch()">Send SOS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DISPATCHED OVERLAY -->
+  <div class="dispatched-overlay fire-dispatch" id="dispatched-overlay">
+    <div class="dispatch-ring" id="dispatch-ring">🚨</div>
+    <div class="dispatch-status" id="dispatch-status">ALERT SENT</div>
+    <div class="dispatch-title" id="dispatch-title">Fire Team Dispatched</div>
+    <div class="dispatch-sub" id="dispatch-sub">Fire response team has been notified. Stay low and move toward the nearest stairwell exit.</div>
+    <div class="dispatch-eta" id="dispatch-eta">ETA: 2–3 minutes</div>
+    <div class="dispatch-instructions">
+      <div class="di-title">Immediate Actions</div>
+      <div id="dispatch-steps"></div>
+    </div>
+    <button class="dismiss-btn" id="dismiss-btn" onclick="closeDismiss()">Return to Home</button>
+  </div>
+
+  <!-- CALL OVERLAY -->
+  <div class="call-overlay" id="call-overlay">
+    <div class="call-avatar">👤</div>
+    <div class="call-name" id="call-name">Front Desk</div>
+    <div class="call-status">Connecting...</div>
+    <div class="call-timer" id="call-timer">00:00</div>
+    <button class="call-endBtn" onclick="endCall()">📵</button>
+  </div>
+
+</div>
+
+<script>
+const sosTypes = [
+  {
+    type:'fire', icon:'🔥', name:'FIRE',
+    desc:'Smoke, flames, or gas leak detected.',
+    confirmTitle:'Send Fire Alert?',
+    confirmDesc:'This will immediately alert the fire response team and initiate evacuation protocol for Floor 4.',
+    dispatchClass:'fire-dispatch',
+    dispatchIcon:'🚨', dispatchStatus:'ALERT SENT',
+    dispatchTitle:'Fire Team Dispatched',
+    dispatchSub:'Fire response team has been notified. Stay low and move toward the nearest stairwell.',
+    eta:'ETA: 2–3 minutes',
+    steps:['Stay low to avoid smoke inhalation','Feel the door — if hot, do not open','Use the stairwell, never the elevator','Assemble at lobby ground floor'],
+    dotColor:'', btnClass:'fire', dotClass:''
+  },
+  {
+    type:'health', icon:'⚕️', name:'MEDICAL',
+    desc:'Medical emergency — chest pain, injury or illness.',
+    confirmTitle:'Send Medical SOS?',
+    confirmDesc:'On-call medical staff and hotel first responders will be dispatched to Room 408 immediately.',
+    dispatchClass:'health-dispatch',
+    dispatchIcon:'💙', dispatchStatus:'HELP ON THE WAY',
+    dispatchTitle:'Medical Staff Dispatched',
+    dispatchSub:'First responders are on their way to Room 408. Keep the door unlocked and stay calm.',
+    eta:'ETA: 1–2 minutes',
+    steps:['Do not move the patient','Keep them still and calm','Unlock the room door','Note any symptoms to share with medics'],
+    dotColor:'blue', btnClass:'health', dotClass:'blue'
+  },
+  {
+    type:'security', icon:'🛡️', name:'SECURITY',
+    desc:'Robbery, intrusion, or terror threat.',
+    confirmTitle:'Send Security Alert?',
+    confirmDesc:'A silent alarm will be dispatched to hotel security and local law enforcement with your location.',
+    dispatchClass:'security-dispatch',
+    dispatchIcon:'🛡️', dispatchStatus:'SILENT ALARM SENT',
+    dispatchTitle:'Security Dispatched',
+    dispatchSub:'Hotel security and authorities have been alerted silently. Do not make noise or confrontation.',
+    eta:'ETA: Under 2 minutes',
+    steps:['Do not resist or confront','Lock the door if it is safe','Silence your phone completely','Wait for security to arrive'],
+    dotColor:'purple', btnClass:'security', dotClass:'purple'
+  }
+];
+
+let currentSOS = 0;
+let countdownTimer = null;
+let countdownVal = 5;
+let callTimer = null;
+let callSeconds = 0;
+
+function switchSOS(idx){
+  currentSOS = idx;
+  const s = sosTypes[idx];
+  const card = document.getElementById('sos-card');
+  card.className = 'sos-card ' + s.type;
+  document.getElementById('sos-icon').textContent = s.icon;
+  document.getElementById('sos-name').textContent = s.name;
+  document.getElementById('sos-desc').textContent = s.desc;
+  for(let i=0;i<3;i++){
+    const d = document.getElementById('dot'+i);
+    d.className = 'dot' + (i===idx ? ' active '+(s.dotClass) : '');
+  }
+}
+
+function showTab(tab){
+  if(tab === 'map') {
+    document.getElementById('root-container').style.display = 'block';
+    window.dispatchEvent(new Event('resize'));
+    return;
+  }
+  ['sos','guidelines','operator'].forEach(t=>{
+    const page = document.getElementById('page-'+t);
+    const nav = document.getElementById('nav-'+t);
+    if(page) page.classList.toggle('active', t===tab);
+    if(nav) nav.classList.toggle('active', t===tab);
+  });
+}
+
+function exitMap() {
+  document.getElementById('root-container').style.display = 'none';
+}
+
+function openConfirm(){
+  const s = sosTypes[currentSOS];
+  document.getElementById('cs-icon').textContent = s.icon;
+  document.getElementById('cs-title').textContent = s.confirmTitle;
+  document.getElementById('cs-desc').textContent = s.confirmDesc;
+  const btn = document.getElementById('cs-confirm-btn');
+  btn.className = 'cs-confirm ' + s.btnClass;
+  countdownVal = 5;
+  document.getElementById('countdown').textContent = '5';
+  document.getElementById('confirm-overlay').classList.add('open');
+  countdownTimer = setInterval(()=>{
+    countdownVal--;
+    document.getElementById('countdown').textContent = countdownVal;
+    if(countdownVal <= 0){ clearInterval(countdownTimer); closeConfirm(); }
+  }, 1000);
+}
+
+function closeConfirm(){
+  clearInterval(countdownTimer);
+  document.getElementById('confirm-overlay').classList.remove('open');
+}
+
+function dispatch(){
+  closeConfirm();
+  const s = sosTypes[currentSOS];
+  
+  if (window.triggerGuestSOS) {
+    window.triggerGuestSOS(s.type);
+  }
+
+  const d = document.getElementById('dispatched-overlay');
+  d.className = 'dispatched-overlay open ' + s.dispatchClass;
+  document.getElementById('dispatch-ring').textContent = s.dispatchIcon;
+  document.getElementById('dispatch-status').textContent = s.dispatchStatus;
+  document.getElementById('dispatch-title').textContent = s.dispatchTitle;
+  document.getElementById('dispatch-sub').textContent = s.dispatchSub;
+  document.getElementById('dispatch-eta').textContent = s.eta;
+  const steps = document.getElementById('dispatch-steps');
+  steps.innerHTML = s.steps.map(st=>`<div class="di-item">${st}</div>`).join('');
+}
+
+function closeDismiss(){
+  document.getElementById('dispatched-overlay').classList.remove('open');
+}
+
+function startCall(name, role){
+  document.getElementById('call-name').textContent = name;
+  callSeconds = 0;
+  document.getElementById('call-timer').textContent = '00:00';
+  document.getElementById('call-overlay').classList.add('open');
+  callTimer = setInterval(()=>{
+    callSeconds++;
+    const m = String(Math.floor(callSeconds/60)).padStart(2,'0');
+    const s2 = String(callSeconds%60).padStart(2,'0');
+    document.getElementById('call-timer').textContent = m+':'+s2;
+  }, 1000);
+}
+
+function endCall(){
+  clearInterval(callTimer);
+  document.getElementById('call-overlay').classList.remove('open');
+}
+
+// Touch/swipe to switch SOS
+let touchStartX = 0;
+document.getElementById('sos-card').addEventListener('touchstart', e=>{ touchStartX = e.touches[0].clientX; });
+document.getElementById('sos-card').addEventListener('touchend', e=>{
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if(Math.abs(dx) > 40){
+    const next = (currentSOS + (dx < 0 ? 1 : -1) + 3) % 3;
+    switchSOS(next);
+  }
+});
+</script>
+
+<script type="module" src="/src/main-guest.jsx"></script>
+</body>
+</html>

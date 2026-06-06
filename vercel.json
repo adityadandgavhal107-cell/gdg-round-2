@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/cam", "destination": "/cam.html" },
+    { "source": "/guest", "destination": "/guest.html" },
+    { "source": "/daf", "destination": "/daf.html" }
+  ]
+}
