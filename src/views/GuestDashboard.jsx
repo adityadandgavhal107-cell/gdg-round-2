@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { hotelData } from '../data/hotel.js';
-import { initializeGuests, calculatePriority, PRIORITY_LABELS, SPECIAL_NEEDS_OPTIONS } from '../data/guests.js';
+import { calculatePriority, PRIORITY_LABELS, SPECIAL_NEEDS_OPTIONS } from '../data/guests.js';
 import bus from '../core/EventBus.js';
 
 const NEEDS_LABELS = {
@@ -9,7 +9,8 @@ const NEEDS_LABELS = {
 };
 
 export default function GuestDashboard({ onHighlightRoom }) {
-  const [guests, setGuests] = useState(initializeGuests());
+  // Use empty array initially; data will sync from SQLite immediately upon component mounting
+  const [guests, setGuests] = useState([]);
   const [search, setSearch] = useState('');
   const [filterFloor, setFilterFloor] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -19,12 +20,44 @@ export default function GuestDashboard({ onHighlightRoom }) {
     name: '', age: '', roomId: '', contact: '', specialNeeds: [],
   });
 
+  const API_BASE_URL = 'http://localhost:8000/api';
+
+  // Synchronize room status alerts via EventBus & pull guest records from SQLite
   useEffect(() => {
+    fetchGuests();
+
     const unsub = bus.on('room:statusChange', ({ roomId, status }) => {
       setRoomStatuses(prev => ({ ...prev, [roomId]: status }));
     });
     return unsub;
   }, []);
+
+  // API Call: Fetch all guests
+  const fetchGuests = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/guests`);
+      if (!response.ok) throw new Error('Database registry synchronization failed.');
+      const data = await response.json();
+      
+      // Adapt database fields back to your exact React object structures
+      const adaptedGuests = data.map(g => ({
+        id: g.id,
+        name: g.full_name,
+        age: g.age,
+        roomId: g.room_assignment,
+        contact: g.contact_number,
+        // Convert comma-separated backend string back into UI tag array strings
+        specialNeeds: g.special_needs ? g.special_needs.split(',') : ['none'],
+        checkedIn: true,
+        evacuated: g.is_evacuated,
+        alertSent: false,
+        priority: g.priority // Using backend calculated priority index
+      }));
+      setGuests(adaptedGuests);
+    } catch (error) {
+      console.error('Error fetching guests from database:', error);
+    }
+  };
 
   const allRooms = Object.keys(hotelData.rooms);
   const occupiedRooms = new Set(guests.map(g => g.roomId));
@@ -39,30 +72,106 @@ export default function GuestDashboard({ onHighlightRoom }) {
     }));
   }
 
-  function handleCheckIn(e) {
+  // API Call: Post new guest form parameters to SQLite
+  async function handleCheckIn(e) {
     e.preventDefault();
     if (!form.name || !form.roomId) return;
-    const newGuest = {
-      id: `g${Date.now()}`,
-      name: form.name,
-      age: parseInt(form.age) || 30,
-      roomId: form.roomId,
-      contact: form.contact,
-      specialNeeds: form.specialNeeds.length ? form.specialNeeds : ['none'],
-      checkedIn: true,
-      evacuated: false,
-      alertSent: false,
-    };
-    newGuest.priority = calculatePriority(newGuest);
-    setGuests(prev => [...prev, newGuest]);
-    setForm({ name: '', age: '', roomId: '', contact: '', specialNeeds: [] });
-    setShowForm(false);
-    bus.emit('notification', { msg: `✅ ${newGuest.name} checked into Room ${newGuest.roomId}`, type: 'info' });
+
+    // Convert your UI array of tags into a comma-separated string for SQLAlchemy
+    const specialNeedsPayload = form.specialNeeds.length ? form.specialNeeds.join(',') : 'none';
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/guests`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          full_name: form.name,
+          age: parseInt(form.age) || 30,
+          room_assignment: form.roomId,
+          contact_number: form.contact || "N/A",
+          special_needs: specialNeedsPayload
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        console.error("Backend validation error details:", err);
+        alert(err.detail || 'Could not verify database reservation.');
+        return;
+      }
+
+      const savedGuest = await response.json();
+
+      // Adapt backend SQLite response to your frontend key structure
+      const UI_NewGuest = {
+        id: savedGuest.id,
+        name: savedGuest.full_name,
+        age: savedGuest.age,
+        roomId: savedGuest.room_assignment,
+        contact: savedGuest.contact_number,
+        specialNeeds: savedGuest.special_needs.split(','),
+        checkedIn: true,
+        evacuated: savedGuest.is_evacuated,
+        alertSent: false,
+        priority: savedGuest.priority
+      };
+
+      setGuests(prev => [...prev, UI_NewGuest]);
+      setForm({ name: '', age: '', roomId: '', contact: '', specialNeeds: [] });
+      setShowForm(false);
+      
+      bus.emit('notification', { msg: `✅ ${UI_NewGuest.name} checked into Room ${UI_NewGuest.roomId}`, type: 'info' });
+    } catch (error) {
+      console.error('Database connection error during check-in:', error);
+      alert('Backend server is unreachable. Check your terminal execution logs.');
+    }
   }
 
-  function markEvacuated(guestId) {
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, evacuated: true } : g));
+  // API Call: Trigger an evacuation status alter statement matching target row primary ID key
+  async function markEvacuated(guestId) {
+    // If guestId is a mock string (e.g., has 'g' prefix from local state), skip DB patch or parse it
+    const cleanId = typeof guestId === 'string' ? guestId.replace('g', '') : guestId;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/guests/${cleanId}/evacuate`, {
+        method: 'PATCH'
+      });
+
+      if (!response.ok) throw new Error('Could not update status row on backend.');
+      
+      setGuests(prev => prev.map(g => g.id === guestId ? { ...g, evacuated: true } : g));
+      bus.emit('notification', { msg: `🏃‍♂️ Status updated: Guest marked evacuated`, type: 'info' });
+    } catch (error) {
+      console.error('Error syncing status alteration with backend:', error);
+      // Fallback local UI update if desired
+      setGuests(prev => prev.map(g => g.id === guestId ? { ...g, evacuated: true } : g));
+    }
   }
+
+  async function handleCheckoutGuest(guestId) {
+  if (!window.confirm("Are you sure you want to checkout this guest? This will permanently erase their record from HMS.")) return;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/guests/${guestId}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) throw new Error('Failed to delete resource entry from database.');
+
+    // Remove from UI state display array instantly
+    setGuests(prev => prev.filter(g => g.id !== guestId));
+      
+    if (typeof bus !== 'undefined') {
+      bus.emit('notification', { msg: `🚪 Guest checked out safely`, type: 'info' });
+    }
+  } catch (error) {
+    console.error('Error during database checkout:', error);
+    alert('Failed to connect to backend server for entry deletion.');
+  }
+}
 
   const filtered = guests.filter(g => {
     const matchSearch = g.name.toLowerCase().includes(search.toLowerCase()) || g.roomId.includes(search);
@@ -179,7 +288,7 @@ export default function GuestDashboard({ onHighlightRoom }) {
                     const mock = { age: parseInt(form.age) || 30, specialNeeds: form.specialNeeds.length ? form.specialNeeds : ['none'] };
                     const p = calculatePriority(mock);
                     const pl = PRIORITY_LABELS[p];
-                    return <span style={{ color: pl.color, fontWeight: 700 }}>{pl.label}</span>;
+                    return <span style={{ color: pl?.color || 'var(--text)', fontWeight: 700 }}>{pl?.label || `Priority ${p}`}</span>;
                   })()}
                 </div>
               </div>
@@ -215,6 +324,7 @@ export default function GuestDashboard({ onHighlightRoom }) {
       </div>
 
       {/* Guest Table */}
+      {/* Guest Table */}
       <div className="glass-card guest-table-wrapper">
         <table className="guest-table">
           <thead>
@@ -225,13 +335,33 @@ export default function GuestDashboard({ onHighlightRoom }) {
               <th>Special Needs</th>
               <th>Priority</th>
               <th>Zone Status</th>
-              <th>Actions</th>
+              <th style = {{ textAlign: 'center' }}>Actions</th>
+              <th style={{ textAlign: 'center', width: '80px' }}>Check-out</th> {/* New Column Header */}
             </tr>
           </thead>
           <tbody>
             {filtered.map(g => {
-              const pl = PRIORITY_LABELS[g.priority];
+              // 1. Zone status calculation
               const zoneStatus = g.evacuated ? 'evacuated' : (roomStatuses[g.roomId] || 'safe');
+              
+              // 2. Localized dynamic style parsing for SQLite data structure
+              const getPriorityStyles = (priorityStr) => {
+                const normalized = String(priorityStr).toLowerCase();
+                
+                if (normalized.includes('p1') || normalized.includes('critical')) {
+                  return { bg: 'rgba(255, 45, 45, 0.15)', color: '#ff4d4d', label: 'P1 – Critical' };
+                }
+                if (normalized.includes('p2') || normalized.includes('high')) {
+                  return { bg: 'rgba(255, 140, 0, 0.15)', color: '#ff9f43', label: 'P2 – High' };
+                }
+                if (normalized.includes('p3') || normalized.includes('medium')) {
+                  return { bg: 'rgba(255, 215, 0, 0.15)', color: '#f1c40f', label: 'P3 – Medium' };
+                }
+                return { bg: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71', label: 'P4 – Standard' };
+              };
+
+              const badgeStyle = getPriorityStyles(g.priority);
+
               return (
                 <tr key={g.id} onClick={() => onHighlightRoom?.(g.roomId)}>
                   <td>
@@ -258,36 +388,88 @@ export default function GuestDashboard({ onHighlightRoom }) {
                       ))}
                     </div>
                   </td>
+                  
+                  {/* Priority Badge Cell */}
                   <td>
-                    <span className="priority-badge" style={{ background: pl.bg, color: pl.color }}>
-                      {pl.label}
+                    <span className="priority-badge" style={{ 
+                      background: badgeStyle.bg, 
+                      color: badgeStyle.color,
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontWeight: '700',
+                      fontSize: '12px',
+                      display: 'inline-block'
+                    }}>
+                      {badgeStyle.label}
                     </span>
                   </td>
+
                   <td>
                     <span className={`status-badge ${zoneStatus.includes('fire') || zoneStatus.includes('smoke') ? 'alert' : zoneStatus === 'evacuated' ? 'evacuated' : 'safe'}`}>
                       {zoneStatus === 'fire' ? '🔥 FIRE' : zoneStatus === 'smoke' ? '💨 SMOKE' : zoneStatus === 'evacuated' ? '✅ Evacuated' : '🛡 Safe'}
                     </span>
                   </td>
+                  
+                  {/* Standard Emergency Actions Cell */}
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%'
+                    }}>
                       {!g.evacuated && (
                         <button
                           className="btn-secondary"
-                          style={{ padding: '4px 8px', fontSize: 11 }}
+                          style={{ padding: '6px 12px', fontSize: 11, whiteSpace: 'nowrap' }}
                           onClick={e => { e.stopPropagation(); markEvacuated(g.id); }}
                         >
                           ✅ Evacuated
                         </button>
                       )}
+                      
                       <button
                         className="btn-secondary"
-                        style={{ padding: '4px 8px', fontSize: 11 }}
+                        style={{ padding: '6px 12px', fontSize: 11, whiteSpace: 'nowrap' }}
                         onClick={e => { e.stopPropagation(); onHighlightRoom?.(g.roomId); }}
                       >
                         🏨 Locate
                       </button>
                     </div>
                   </td>
+
+                  {/* NEW Dedicated C/O (Check-Out) Column Cell */}
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      className="btn-secondary"
+                      title="Checkout / Delete Guest"
+                      style={{ 
+                        padding: '6px 14px', 
+                        fontSize: '11px', 
+                        fontWeight: '800', 
+                        color: '#ff4d4d', 
+                        borderColor: '#ff4d4d', 
+                        background: 'rgba(255, 77, 77, 0.1)', 
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.2s ease',
+                        display: 'inline-block',
+                        margin: '0 auto'
+                      }}
+                      onClick={e => { 
+                        e.stopPropagation(); 
+                        if (typeof handleCheckoutGuest === 'function') {
+                          handleCheckoutGuest(g.id); 
+                        } else {
+                          alert('Checkout feature backend connection handler is missing.');
+                        }
+                      }}
+                    >
+                      C/O
+                    </button>
+                  </td>
+
                 </tr>
               );
             })}

@@ -8,6 +8,7 @@ import CameraGrid from './views/CameraGrid.jsx';
 import GuestDashboard from './views/GuestDashboard.jsx';
 import DAFTeamView from './views/DAFTeamView.jsx';
 import SplashScreen from './components/SplashScreen.jsx';
+import LoginPortal from './views/LoginPortal.jsx'; // Imported the unified login portal
 import { io } from 'socket.io-client';
 import bus from './core/EventBus.js';
 import { findEvacuationPath } from './data/hotel.js';
@@ -25,6 +26,9 @@ export default function App() {
   const [evacuationPath, setEvacuationPath] = useState([]);
   const [isSplashComplete, setIsSplashComplete] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  
+  // New Authentication Guard State for the Administrative interface
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
 
   useEffect(() => {
     // ── SOCKET.IO: Receive Real-time Detections from Cameras ──────────
@@ -99,44 +103,49 @@ export default function App() {
     setAlertCounts(prev => ({ ...prev, [view]: 0 }));
   }, []);
 
+  // 1. First Phase: Ensure Splash Screen has finished its display run cycle
+  if (!isSplashComplete) {
+    return <SplashScreen onComplete={() => setIsSplashComplete(true)} />;
+  }
+
+  // 2. Second Phase: Enforce authentication entry barrier if user is not verified as Admin
+  if (!isAdminAuthenticated) {
+    return <LoginPortal onAdminLoginSuccess={() => setIsAdminAuthenticated(true)} />;
+  }
+
+  // 3. Final Phase: Render full authenticated system dashboard shell
   return (
-    <>
-      {!isSplashComplete && (
-        <SplashScreen onComplete={() => setIsSplashComplete(true)} />
-      )}
-      
-      <div className="app-shell" style={{ opacity: isSplashComplete ? 1 : 0, transition: 'opacity 0.8s ease-in' }}>
-        <div className="app-topbar">
-          <TopBar activeView={activeView} alertCount={alertCount} />
-        </div>
-
-        <div className="app-sidebar">
-          <Sidebar
-            activeView={activeView}
-            onNavigate={handleNavigate}
-            alertCounts={alertCounts}
-          />
-        </div>
-
-        <main className="app-main">
-          {activeView === 'hotel3d' && (
-            <HotelView3D onRoomClick={handleRoomClick} evacuationPath={evacuationPath} />
-          )}
-          {activeView === 'cameras' && (
-            <CameraGrid selectedRoom={selectedRoom} />
-          )}
-          {activeView === 'guests' && (
-            <GuestDashboard onHighlightRoom={handleHighlightRoom} />
-          )}
-          {activeView === 'daf' && (
-            <DAFTeamView />
-          )}
-        </main>
-
-        <div className="app-alerts">
-          <AlertPanel onAlertClick={handleAlertClick} />
-        </div>
+    <div className="app-shell" style={{ opacity: 1, transition: 'opacity 0.8s ease-in' }}>
+      <div className="app-topbar">
+        <TopBar activeView={activeView} alertCount={alertCount} />
       </div>
-    </>
+
+      <div className="app-sidebar">
+        <Sidebar
+          activeView={activeView}
+          onNavigate={handleNavigate}
+          alertCounts={alertCounts}
+        />
+      </div>
+
+      <main className="app-main">
+        {activeView === 'hotel3d' && (
+          <HotelView3D onRoomClick={handleRoomClick} evacuationPath={evacuationPath} />
+        )}
+        {activeView === 'cameras' && (
+          <CameraGrid selectedRoom={selectedRoom} />
+        )}
+        {activeView === 'guests' && (
+          <GuestDashboard onHighlightRoom={handleHighlightRoom} />
+        )}
+        {activeView === 'daf' && (
+          <DAFTeamView />
+        )}
+      </main>
+
+      <div className="app-alerts">
+        <AlertPanel onAlertClick={handleAlertClick} />
+      </div>
+    </div>
   );
 }
