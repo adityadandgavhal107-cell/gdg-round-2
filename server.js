@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import cron from 'node-cron'; // For 11:00 AM Automated Eviction Engine
 import {
   getFirstRingNeighbors,
   getSecondRingNeighbors,
@@ -10,6 +11,10 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// Enable JSON middleware parser for API routes if needed
+app.use(express.json());
+
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
@@ -24,6 +29,8 @@ const hazards = {};
 const cameras = {};
 // Track admin sockets
 const admins = new Set();
+// Track live checked-in hotel guests
+let hotelGuests = [];
 
 // ── Hazard severity ordering ──────────────────────────────────────────────
 const SEVERITY = { fire: 3, smoke: 2, buffer: 1 };
@@ -94,17 +101,52 @@ function recomputeHazardsAfterResolution(resolvedFireId) {
   });
 }
 
+// ==========================================
+// ⏰ AUTOMATIC 11:00 AM GUEST EVICTION ENGINE
+// ==========================================
+/**
+ * Cron pattern: 0 11 * * * -> Min 0, Hour 11, Every Day, Month, Week
+ * Executes an eviction sweep on the hotel database precisely at 11:00 AM.
+ */
+cron.schedule('3 10 * * *', async () => {
+  console.log('\n⏰ [EVICTION ENGINE] Executing automated 11:00 AM checkout sweep...');
+
+  // Format target date structure into standard local comparison string (YYYY-MM-DD)
+  const todayString = new Date().toLocaleDateString('en-CA'); // Outputs perfectly as YYYY-MM-DD
+
+  const totalBefore = hotelGuests.length;
+
+  // Filter out and retain guests whose checkout date is in the future
+  hotelGuests = hotelGuests.filter(guest => guest.checkOutDate !== todayString);
+  const totalEvicted = totalBefore - hotelGuests.length;
+
+  if (totalEvicted > 0) {
+    console.log(`🧹 [EVICTION ENGINE] Cleaned up ${totalEvicted} expired guest accounts due for check-out today (${todayString}).`);
+    // Broadcast clean database state layout updates to all administrative displays and clients
+    io.emit('guest:roster_update', hotelGuests);
+  } else {
+    console.log(`ℹ️ [EVICTION ENGINE] No matching departures found for date: ${todayString}.`);
+  }
+
+  // Also trigger auto-eviction on the FastAPI / SQLite backend
+  try {
+    const res = await fetch('http://localhost:8000/api/guests/auto-evict', { method: 'DELETE' });
+    const data = await res.json();
+    console.log(`🗄️  [EVICTION ENGINE] SQLite eviction: ${data.evicted} guest(s) removed for ${data.date}.`);
+    // Notify all admin dashboards to re-fetch their guest lists
+    io.emit('guests:auto_evicted', { count: data.evicted, date: data.date });
+  } catch (err) {
+    console.error('❌ [EVICTION ENGINE] Failed to reach FastAPI auto-evict endpoint:', err.message);
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
   console.log('Connected:', socket.id);
   socket.onAny((event, ...args) => {
-  console.log(
-    '[SOCKET EVENT]',
-    event,
-    args
-  );
-});
+    console.log('[SOCKET EVENT]', event, args);
+  });
 
   // ── 1. Send current hazard state immediately ──────────────────────────
   socket.emit('hazards:init', hazards);
@@ -128,6 +170,8 @@ io.on('connection', (socket) => {
     socket.emit('camera:list', cameras);
     // Send current hazard state to new admin
     socket.emit('hazards:init', hazards);
+    // Send immediate sync layout of current guests to admin on launch
+    socket.emit('guest:roster_update', hotelGuests);
   });
 
   // ── WebRTC signaling ──────────────────────────────────────────────────
@@ -183,8 +227,6 @@ io.on('connection', (socket) => {
   });
 
   // ── Internal spread event from fireSpread.js ──────────────────────────
-  // fireSpread.js emits 'detection:raw' on the EventBus; bridged here so
-  // the spread engine can operate independently while the server owns state.
   socket.on('spread:fire', ({ roomId }) => {
     propagateFireHazards(String(roomId));
     broadcastHazards();
@@ -222,6 +264,48 @@ io.on('connection', (socket) => {
     Object.keys(hazards).forEach(k => delete hazards[k]);
     broadcastHazards();
     console.log('[HAZARDS] All hazards cleared by admin');
+  });
+
+  // ── Guest Registration Layer ──────────────────────────────────────────
+  socket.on('guest:register_checkin', (guestFormPayload) => {
+    try {
+      const checkIn = new Date(guestFormPayload.checkInDate);
+      const checkOut = new Date(guestFormPayload.checkOutDate);
+
+      // Math parsing calculation to isolate staying nights count metrics
+      const timeDiff = checkOut.getTime() - checkIn.getTime();
+      const calculatedNights = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+      const finalGuestRecord = {
+        id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        name: guestFormPayload.name,
+        age: parseInt(guestFormPayload.age) || null,
+        roomId: String(guestFormPayload.roomId),
+        contact: guestFormPayload.contact || '',
+        specialNeeds: guestFormPayload.specialNeeds || [],
+        checkInDate: guestFormPayload.checkInDate,
+        checkOutDate: guestFormPayload.checkOutDate,
+        nights: calculatedNights > 0 ? calculatedNights : 1, // Fallback guard to 1 night
+        checkedInAt: new Date().toISOString(),
+      };
+
+      hotelGuests.push(finalGuestRecord);
+      console.log(`➕ [CHECK-IN REST] Guest '${finalGuestRecord.name}' registered to Room ${finalGuestRecord.roomId} for ${finalGuestRecord.nights} nights.`);
+
+      // Broadcast update loop across active pipeline channels
+      io.emit('guest:roster_update', hotelGuests);
+
+      // Send individual execution acknowledgement block trace
+      socket.emit('guest:checkin_success', finalGuestRecord);
+    } catch (err) {
+      console.error('❌ Error handling guest registration check-in:', err);
+      socket.emit('guest:checkin_error', { message: 'Failed processing database stay intervals.' });
+    }
+  });
+
+  // ── Fetch complete guest profile allocations on demand ────────────────
+  socket.on('guest:request_roster', () => {
+    socket.emit('guest:roster_update', hotelGuests);
   });
 
   // ── Disconnect ────────────────────────────────────────────────────────

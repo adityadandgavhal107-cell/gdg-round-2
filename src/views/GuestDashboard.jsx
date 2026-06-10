@@ -15,8 +15,13 @@ export default function GuestDashboard({ onHighlightRoom }) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [roomStatuses, setRoomStatuses] = useState({});
+
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
   const [form, setForm] = useState({
     name: '', age: '', roomId: '', contact: '', specialNeeds: [],
+    checkInDate: today, checkOutDate: tomorrow,
   });
 
   const API_BASE_URL = 'http://localhost:8000/api';
@@ -45,6 +50,9 @@ export default function GuestDashboard({ onHighlightRoom }) {
         evacuated: g.is_evacuated,
         alertSent: false,
         priority: g.priority,
+        checkInDate: g.check_in_date,
+        checkOutDate: g.check_out_date,
+        nights: g.nights,
       }));
       setGuests(adaptedGuests);
     } catch (error) {
@@ -79,6 +87,8 @@ export default function GuestDashboard({ onHighlightRoom }) {
           room_assignment: form.roomId,
           contact_number: form.contact || 'N/A',
           special_needs: specialNeedsPayload,
+          check_in_date: form.checkInDate,
+          check_out_date: form.checkOutDate,
         }),
       });
       if (!response.ok) {
@@ -99,9 +109,14 @@ export default function GuestDashboard({ onHighlightRoom }) {
         evacuated: savedGuest.is_evacuated,
         alertSent: false,
         priority: savedGuest.priority,
+        checkInDate: savedGuest.check_in_date,
+        checkOutDate: savedGuest.check_out_date,
+        nights: savedGuest.nights,
       };
       setGuests(prev => [...prev, UI_NewGuest]);
-      setForm({ name: '', age: '', roomId: '', contact: '', specialNeeds: [] });
+      const resetToday = new Date().toISOString().split('T')[0];
+      const resetTomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      setForm({ name: '', age: '', roomId: '', contact: '', specialNeeds: [], checkInDate: resetToday, checkOutDate: resetTomorrow });
       setShowForm(false);
       bus.emit('notification', { msg: `✅ ${UI_NewGuest.name} checked into Room ${UI_NewGuest.roomId}`, type: 'info' });
     } catch (error) {
@@ -229,6 +244,42 @@ export default function GuestDashboard({ onHighlightRoom }) {
               <input className="form-input" placeholder="Phone number" value={form.contact}
                 onChange={e => setForm(p => ({ ...p, contact: e.target.value }))} />
             </div>
+            <div className="form-group">
+              <label className="form-label">Check-In Date</label>
+              <input
+                className="form-input"
+                type="date"
+                value={form.checkInDate}
+                min={today}
+                onChange={e => {
+                  const newCheckIn = e.target.value;
+                  const checkOut = form.checkOutDate < newCheckIn
+                    ? new Date(new Date(newCheckIn).getTime() + 86400000).toISOString().split('T')[0]
+                    : form.checkOutDate;
+                  setForm(p => ({ ...p, checkInDate: newCheckIn, checkOutDate: checkOut }));
+                }}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Check-Out Date</label>
+              <input
+                className="form-input"
+                type="date"
+                value={form.checkOutDate}
+                min={form.checkInDate
+                  ? new Date(new Date(form.checkInDate).getTime() + 86400000).toISOString().split('T')[0]
+                  : tomorrow}
+                onChange={e => setForm(p => ({ ...p, checkOutDate: e.target.value }))}
+              />
+              {form.checkInDate && form.checkOutDate && (
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-dim)' }}>
+                  {(() => {
+                    const n = Math.max(1, Math.round((new Date(form.checkOutDate) - new Date(form.checkInDate)) / 86400000));
+                    return `🌙 ${n} night${n !== 1 ? 's' : ''}`;
+                  })()}
+                </div>
+              )}
+            </div>
             <div className="form-group full-width">
               <label className="form-label">Special Needs</label>
               <div className="special-needs-grid">
@@ -293,6 +344,7 @@ export default function GuestDashboard({ onHighlightRoom }) {
             <tr>
               <th>Guest</th>
               <th>Room</th>
+              <th>Stay</th>
               <th>Age</th>
               <th>Special Needs</th>
               <th>Priority</th>
@@ -329,6 +381,10 @@ export default function GuestDashboard({ onHighlightRoom }) {
                   </td>
                   <td>
                     <span className="mono" style={{ color: 'var(--accent-blue)' }}>{g.roomId}</span>
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{g.nights ?? '—'}n</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{g.checkOutDate ?? ''}</div>
                   </td>
                   <td className="mono">{g.age}</td>
                   <td>

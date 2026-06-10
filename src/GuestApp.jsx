@@ -25,21 +25,15 @@ export default function GuestApp() {
   useEffect(() => { guestProfileRef.current = guestProfile; }, [guestProfile]);
 
   // ── applyHazard: set a room on fire/smoke/buffer ──────────────────────
-  // Emits 'room:statusChange' on the bus — stored in history — so any
-  // HotelView3D that mounts later replays the correct final state.
   const applyHazard = (id, type, intensity = 1.0) => {
     const sid = String(id);
     const busStatus = type === 'buffer' ? 'smoke' : type;
     roomHazardsRef.current = { ...roomHazardsRef.current, [sid]: { type, intensity } };
     setRoomHazards({ ...roomHazardsRef.current });
-    // Always use 'room:statusChange' (not 'alert:resolved') so history is ordered correctly
     bus.emit('room:statusChange', { roomId: sid, status: busStatus });
   };
 
   // ── clearHazard: mark a room safe ────────────────────────────────────
-  // CRITICAL: emit 'room:statusChange' with status='clear' — NOT 'alert:resolved'.
-  // If we emitted 'alert:resolved' it would be stored in a SEPARATE history channel
-  // and replayed out-of-order, causing fire→clear ping-pong on new mounts.
   const clearHazard = (id) => {
     const sid = String(id);
     const next = { ...roomHazardsRef.current };
@@ -94,15 +88,38 @@ export default function GuestApp() {
         const room  = String(profile.room || profile.room_id || profile.room_number || profile.roomId || '');
         const floor = profile.floor ?? (room ? Math.floor(Number(room) / 100) : '--');
 
-        const rawCheckout = profile.check_out || profile.checkout || profile.checkOut || profile.checkout_date || null;
-        const checkoutDisplay = rawCheckout
-          ? new Date(rawCheckout).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
-          : '--';
+        const rawCheckout =
+          profile.checkOutDate || profile.check_out || profile.checkout ||
+          profile.checkOut || profile.checkout_date || null;
 
-        const rawCheckin = profile.check_in || profile.checkin || profile.checkIn || null;
+        // Parse date string in a timezone-safe way.
+        // "YYYY-MM-DD" strings are UTC midnight in JS — adding T00:00:00 forces
+        // local-time parsing so toLocaleDateString never rolls back a day.
+        const parseDateSafe = (str) => {
+          if (!str) return null;
+          // Already a Date object
+          if (str instanceof Date) return str;
+          const s = String(str).trim();
+          // Pure ISO date "YYYY-MM-DD" — parse as local midnight to avoid UTC offset shift
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+          return new Date(s);
+        };
+
+        const checkoutDate = parseDateSafe(rawCheckout);
+        const checkoutDisplay =
+          checkoutDate && !isNaN(checkoutDate)
+            ? checkoutDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+            : '--';
+
+        const rawCheckin =
+          profile.checkInDate || profile.check_in || profile.checkin || profile.checkIn || null;
         let nights = profile.nights ?? profile.stay_nights ?? '--';
         if (nights === '--' && rawCheckin && rawCheckout) {
-          nights = Math.round((new Date(rawCheckout) - new Date(rawCheckin)) / 86400000);
+          const ci = parseDateSafe(rawCheckin);
+          const co = parseDateSafe(rawCheckout);
+          if (ci && co && !isNaN(ci) && !isNaN(co)) {
+            nights = Math.round((co - ci) / 86400000);
+          }
         }
 
         const normalised = { name, room, floor, nights, checkoutDate: checkoutDisplay };
@@ -134,7 +151,6 @@ export default function GuestApp() {
   }, []);
 
   // ── WebSocket — created ONCE, never recreated ─────────────────────────
-  // roomId/guestProfile are read via refs so we never need to reconnect.
   useEffect(() => {
     const socket = io(config.socketUrl, { path: config.socketPath });
 
@@ -158,7 +174,6 @@ export default function GuestApp() {
     // ── hazards:init — full authoritative state on connect ────────────
     socket.on('hazards:init', (fullMap) => {
       console.log('[GUEST] hazards:init received:', fullMap);
-      // Reset to exactly the server's state
       roomHazardsRef.current = {};
       Object.entries(fullMap).forEach(([id, { type, intensity }]) => {
         const sid = String(id);
@@ -170,16 +185,12 @@ export default function GuestApp() {
     });
 
     // ── hazards:update — authoritative broadcast after every change ───
-    // This is what fires on ALL clients when any guest triggers SOS.
-    // We use 'room:statusChange' for both additions and removals so that
-    // the EventBus history channel stays consistent and ordered.
     socket.on('hazards:update', (fullMap) => {
       console.log('[GUEST] hazards:update received:', fullMap);
 
       const previousIds = new Set(Object.keys(roomHazardsRef.current));
       const newRef = {};
 
-      // Apply every room in the server's authoritative map
       Object.entries(fullMap).forEach(([id, { type, intensity }]) => {
         const sid = String(id);
         const busStatus = type === 'buffer' ? 'smoke' : type;
@@ -188,8 +199,6 @@ export default function GuestApp() {
         previousIds.delete(sid);
       });
 
-      // Rooms no longer in server map → emit clear via room:statusChange
-      // (NOT alert:resolved — that would pollute a separate history channel)
       previousIds.forEach(id => {
         console.log(`[GUEST] hazards:update — clearing stale room ${id}`);
         bus.emit('room:statusChange', { roomId: id, status: 'clear' });
@@ -228,7 +237,6 @@ export default function GuestApp() {
       }
     });
 
-    // alert:resolved from server — clear via room:statusChange (not alert:resolved bus event)
     socket.on('alert:resolved', ({ roomId: resolvedRoom }) => {
       if (!resolvedRoom) return;
       const sid = String(resolvedRoom);
@@ -302,8 +310,227 @@ export default function GuestApp() {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0d0d1a', color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      background: '#0d0d1a',
+      color: '#fff',
+      fontFamily: "'Inter', sans-serif",
+      overflow: 'hidden',
+    }}>
+
+      {/* ── UI Panel: pinned to top, never overlaps 3D view ── */}
+      <div style={{
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        padding: '10px 12px 8px',
+        background: '#0d0d1a',
+        zIndex: 100,
+      }}>
+
+        {/* Verify room + Find Exit + view toggle */}
+        <div style={{
+          background: 'rgba(13, 13, 26, 0.85)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '18px',
+          padding: '14px',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        }}>
+          <div>
+            <label style={{
+              fontFamily: "'Rajdhani', sans-serif",
+              fontSize: '11px',
+              fontWeight: 600,
+              color: '#4a5568',
+              letterSpacing: '1.5px',
+              textTransform: 'uppercase',
+              marginBottom: '6px',
+              display: 'block',
+            }}>
+              Verify Location Room
+            </label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  color: '#fff',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  fontFamily: "'Inter', sans-serif",
+                }}
+                placeholder="e.g. 408"
+              />
+              <button
+                onClick={handleGeneratePath}
+                style={{
+                  background: 'linear-gradient(135deg, #fc8181, #e53e3e)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '0 22px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontFamily: "'Rajdhani', sans-serif",
+                  fontSize: '14px',
+                  letterSpacing: '1px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(229,62,62,0.3)',
+                }}
+              >
+                FIND EXIT
+              </button>
+            </div>
+          </div>
+
+          {path.length > 0 && (
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                onClick={() => setViewMode('map')}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: viewMode === 'map' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)',
+                  color: viewMode === 'map' ? '#fff' : '#a0aec0',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontFamily: "'Rajdhani', sans-serif",
+                  fontWeight: 600,
+                  letterSpacing: '1px',
+                  cursor: 'pointer',
+                }}
+              >
+                🗺️ OVERVIEW MAP
+              </button>
+              <button
+                onClick={() => setViewMode('pov')}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: viewMode === 'pov' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)',
+                  color: viewMode === 'pov' ? '#fff' : '#a0aec0',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontFamily: "'Rajdhani', sans-serif",
+                  fontWeight: 600,
+                  letterSpacing: '1px',
+                  cursor: 'pointer',
+                }}
+              >
+                👁️ FIRST PERSON POV
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Safest evacuation route */}
+        {path.length > 0 && (
+          <div style={{
+            background: 'rgba(13, 13, 26, 0.9)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            padding: '14px',
+            borderRadius: '16px',
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{
+              fontFamily: "'Rajdhani', sans-serif",
+              fontSize: '11px',
+              color: '#63b3ed',
+              marginBottom: '6px',
+              fontWeight: 700,
+              letterSpacing: '1.5px',
+            }}>
+              SAFEST EVACUATION ROUTE:
+            </div>
+            <div style={{
+              fontSize: '13px',
+              lineHeight: 1.4,
+              color: '#e2e8f0',
+              fontWeight: 500,
+              fontFamily: "'Inter', sans-serif",
+              wordBreak: 'break-all',
+            }}>
+              {(path || []).join(' ➔ ')}
+            </div>
+            {blockedRoomsList.length > 0 && (
+              <div style={{
+                fontSize: '11px',
+                color: '#fc8181',
+                marginTop: '8px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}>
+                ⚠️ Hazards avoided: {blockedRoomsList.join(', ')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── 3D canvas: fills all remaining height, fully pannable/zoomable ── */}
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+
+        {/* Status badges — float top-right over the 3D map, no layout cost */}
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          display: 'flex',
+          gap: '6px',
+          zIndex: 200,
+          pointerEvents: 'none',
+        }}>
+          <span style={{
+            fontSize: '7px',
+            background: '#e53e3e',
+            color: '#fff',
+            padding: '4px 10px',
+            borderRadius: '20px',
+            fontWeight: 700,
+            fontFamily: "'Rajdhani', sans-serif",
+            letterSpacing: '1px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          }}>
+            {isOffline ? 'OFFLINE' : 'LIVE MAP'}
+          </span>
+          <span style={{
+            fontSize: '7px',
+            background: socketConnected ? 'rgba(72,187,120,0.2)' : 'rgba(229,62,62,0.2)',
+            color: socketConnected ? '#68d391' : '#fc8181',
+            border: socketConnected ? '1px solid rgba(72,187,120,0.4)' : '1px solid rgba(229,62,62,0.4)',
+            padding: '4px 10px',
+            borderRadius: '20px',
+            fontWeight: 600,
+            fontFamily: "'Rajdhani', sans-serif",
+            letterSpacing: '0.5px',
+            backdropFilter: 'blur(4px)',
+          }}>
+            {socketConnected ? 'TELEMETRY SYNCED' : 'RECONNECTING HUB'}
+          </span>
+        </div>
+
         <HotelView3D
           evacuationPath={path}
           viewMode={viewMode}
@@ -312,74 +539,8 @@ export default function GuestApp() {
           alertRooms={alertRooms}
           roomStatuses={derivedRoomStatuses}
         />
-
-        <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 100 }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-            <span style={{ fontSize: '10px', background: '#e53e3e', color: '#fff', padding: '4px 10px', borderRadius: '20px', fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", letterSpacing: '1px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
-              {isOffline ? 'OFFLINE' : 'LIVE MAP'}
-            </span>
-            <span style={{ fontSize: '10px', background: socketConnected ? 'rgba(72,187,120,0.2)' : 'rgba(229,62,62,0.2)', color: socketConnected ? '#68d391' : '#fc8181', border: socketConnected ? '1px solid rgba(72,187,120,0.4)' : '1px solid rgba(229,62,62,0.4)', padding: '4px 10px', borderRadius: '20px', fontWeight: 600, fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.5px', backdropFilter: 'blur(4px)' }}>
-              {socketConnected ? 'TELEMETRY SYNCED' : 'RECONNECTING HUB'}
-            </span>
-          </div>
-
-          <div style={{ background: 'rgba(13, 13, 26, 0.85)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '14px', backdropFilter: 'blur(10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div>
-              <label style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: '11px', fontWeight: 600, color: '#4a5568', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
-                Verify Location Room
-              </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: '#fff', padding: '10px 14px', borderRadius: '10px', fontSize: '14px', outline: 'none', fontFamily: "'Inter', sans-serif" }}
-                  placeholder="e.g. 408"
-                />
-                <button
-                  onClick={handleGeneratePath}
-                  style={{ background: 'linear-gradient(135deg, #fc8181, #e53e3e)', color: '#fff', border: 'none', padding: '0 22px', borderRadius: '10px', fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(229,62,62,0.3)' }}
-                >
-                  FIND EXIT
-                </button>
-              </div>
-            </div>
-
-            {path.length > 0 && (
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => setViewMode('map')}
-                  style={{ flex: 1, padding: '10px', background: viewMode === 'map' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)', color: viewMode === 'map' ? '#fff' : '#a0aec0', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', fontSize: '11px', fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, letterSpacing: '1px' }}
-                >
-                  🗺️ OVERVIEW MAP
-                </button>
-                <button
-                  onClick={() => setViewMode('pov')}
-                  style={{ flex: 1, padding: '10px', background: viewMode === 'pov' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)', color: viewMode === 'pov' ? '#fff' : '#a0aec0', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', fontSize: '11px', fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, letterSpacing: '1px' }}
-                >
-                  👁️ FIRST PERSON POV
-                </button>
-              </div>
-            )}
-          </div>
-
-          {path.length > 0 && (
-            <div style={{ background: 'rgba(13, 13, 26, 0.9)', border: '1px solid rgba(255,255,255,0.08)', padding: '14px', borderRadius: '16px', backdropFilter: 'blur(8px)', boxShadow: '0 10px 25px rgba(0,0,0,0.4)' }}>
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: '11px', color: '#63b3ed', marginBottom: '6px', fontWeight: 700, letterSpacing: '1.5px' }}>
-                SAFEST EVACUATION ROUTE:
-              </div>
-              <div style={{ fontSize: '13px', lineHeight: 1.4, color: '#e2e8f0', fontWeight: 500, fontFamily: "'Inter', sans-serif", wordBreak: 'break-all' }}>
-                {(path || []).join(' ➔ ')}
-              </div>
-              {blockedRoomsList.length > 0 && (
-                <div style={{ fontSize: '11px', color: '#fc8181', marginTop: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  ⚠️ Hazards avoided: {blockedRoomsList.join(', ')}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
+
     </div>
   );
 }

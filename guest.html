@@ -15,7 +15,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 
 .phone {
   width: 375px;
-  min-height: 720px;
+  height: 720px;
   background: #0d0d1a;
   border-radius: 40px;
   border: 2px solid rgba(255,255,255,0.08);
@@ -31,6 +31,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   padding:12px 24px 8px;
   display:flex;align-items:center;justify-content:space-between;
   background:#0d0d1a;
+  flex-shrink:0;
 }
 .statusbar-left{display:flex;align-items:center;gap:8px;}
 .guest-icon{
@@ -41,12 +42,13 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 }
 .statusbar-title{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;color:#fff;line-height:1.2;}
 .statusbar-right{display:flex;align-items:center;gap:6px;}
-.wifi-icon svg{color:#fff;}
 
 /* INFO STRIP */
 .info-strip{
   display:grid;grid-template-columns:1fr 1fr;
   gap:8px;padding:4px 16px 8px;
+  flex-shrink:0;
+  transition: all 0.2s;
 }
 .info-pill{
   background:rgba(255,255,255,0.05);
@@ -62,6 +64,8 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 .tiles{
   display:grid;grid-template-columns:1fr 1fr;
   gap:8px;padding:0 16px 12px;
+  flex-shrink:0;
+  transition: all 0.2s;
 }
 .tile{
   background:rgba(255,255,255,0.04);
@@ -71,8 +75,24 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 .tile-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#4a5568;font-weight:600;margin-bottom:6px;}
 .tile-value{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:#e2e8f0;}
 
+/* Hide strips & free up space when map tab is active */
+.map-active .info-strip,
+.map-active .tiles {
+  display: none;
+}
+.map-active .main {
+  flex: 1;
+}
+
 /* MAIN CONTENT */
-.main{flex:1;padding:0 16px;overflow:hidden; display:flex; flex-direction:column;}
+.main{
+  flex:1;
+  padding:0 16px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
 
 /* SOS CARD */
 .sos-card{
@@ -85,13 +105,11 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 .sos-card.fire{background:linear-gradient(145deg,#5a0a0a,#8b1a1a,#c0392b);}
 .sos-card.health{background:linear-gradient(145deg,#0a2a5a,#1a4a8b,#2980b9);}
 .sos-card.security{background:linear-gradient(145deg,#2a0a5a,#4a1a8b,#7b3aed);}
-
 .sos-card::before{
   content:'';position:absolute;inset:0;
   background:radial-gradient(circle at 50% 30%, rgba(255,255,255,0.08), transparent 70%);
   pointer-events:none;
 }
-
 .sos-card-icon{
   width:64px;height:64px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
@@ -101,23 +119,16 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 .fire .sos-card-icon{background:rgba(239,68,68,0.25);box-shadow:0 0 0 0 rgba(239,68,68,0.5);}
 .health .sos-card-icon{background:rgba(59,130,246,0.25);box-shadow:0 0 0 0 rgba(59,130,246,0.5);}
 .security .sos-card-icon{background:rgba(139,92,246,0.25);box-shadow:0 0 0 0 rgba(139,92,246,0.5);}
-
-@keyframes glow{
-  0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5);}
-  50%{box-shadow:0 0 20px 8px rgba(239,68,68,0.2);}
-}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5);}50%{box-shadow:0 0 20px 8px rgba(239,68,68,0.2);}}
 .health .sos-card-icon{animation-name:glow-blue;}
 @keyframes glow-blue{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5);}50%{box-shadow:0 0 20px 8px rgba(59,130,246,0.2);}}
 .security .sos-card-icon{animation-name:glow-purple;}
 @keyframes glow-purple{0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,0.5);}50%{box-shadow:0 0 20px 8px rgba(139,92,246,0.2);}}
-
 .sos-card-name{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;letter-spacing:2px;margin-bottom:6px;}
 .fire .sos-card-name{color:#fc8181;}
 .health .sos-card-name{color:#63b3ed;}
 .security .sos-card-name{color:#b794f4;}
-
 .sos-card-desc{font-size:12px;color:rgba(255,255,255,0.5);line-height:1.6;margin-bottom:18px;}
-
 .trigger-btn{
   background:linear-gradient(135deg,#fc8181,#e53e3e);
   border:none;border-radius:30px;
@@ -146,6 +157,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   display:flex;
   border-top:1px solid rgba(255,255,255,0.07);
   background:#0d0d1a;
+  flex-shrink:0;
 }
 .nav-item{
   flex:1;padding:10px 0 12px;
@@ -160,7 +172,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 .nav-item.active .nav-label{color:#e53e3e;}
 
 /* PAGES */
-.page{display:none; flex:1; flex-direction:column;}
+.page{display:none; flex:1; flex-direction:column; overflow-y:auto; min-height:0;}
 .page.active{display:flex;}
 
 /* GUIDELINES PAGE */
@@ -209,6 +221,34 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 }
 .op-call-btn:active{background:rgba(72,187,120,0.3);}
 
+/* EVAC MAP PAGE — full screen inside .main, no side padding */
+#page-map {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+  margin: 0 -16px; /* cancel .main's padding so map goes edge-to-edge */
+}
+#page-map.active { display: flex; }
+
+#root-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  background: #050508;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 /* OVERLAY */
 .overlay{
   position:absolute;inset:0;z-index:50;
@@ -217,7 +257,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   padding:20px;
 }
 .overlay.open{display:flex;}
-
 .confirm-sheet{
   background:#161628;
   border:1px solid rgba(255,255,255,0.1);
@@ -225,7 +264,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   width:100%;animation:slideUp 0.25s ease;
 }
 @keyframes slideUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
-
 .cs-icon{font-size:44px;text-align:center;margin-bottom:12px;}
 .cs-title{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:#fff;text-align:center;margin-bottom:8px;}
 .cs-desc{font-size:12px;color:#718096;text-align:center;line-height:1.6;margin-bottom:22px;}
@@ -234,7 +272,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   border-radius:10px;padding:10px 14px;margin-bottom:20px;
   font-size:11px;color:#f6e05e;line-height:1.5;text-align:center;
 }
-
 .countdown-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;}
 .countdown-circle{
   width:54px;height:54px;border-radius:50%;
@@ -243,7 +280,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:#fc8181;
 }
 .countdown-label{font-size:12px;color:#718096;}
-
 .cs-btns{display:flex;gap:10px;}
 .cs-cancel{
   flex:1;padding:14px;border-radius:14px;
@@ -270,7 +306,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   padding:32px 24px;text-align:center;
 }
 .dispatched-overlay.open{display:flex;}
-
 .dispatch-ring{
   width:100px;height:100px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
@@ -288,30 +323,17 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 .health-dispatch .dispatch-ring::before,.health-dispatch .dispatch-ring::after{border:2px solid rgba(59,130,246,0.4);}
 .security-dispatch .dispatch-ring{background:rgba(139,92,246,0.15);}
 .security-dispatch .dispatch-ring::before,.security-dispatch .dispatch-ring::after{border:2px solid rgba(139,92,246,0.4);}
-
-@keyframes ripple{
-  from{transform:scale(1);opacity:1;}
-  to{transform:scale(2);opacity:0;}
-}
-
-.dispatch-status{
-  font-size:10px;letter-spacing:2px;text-transform:uppercase;
-  margin-bottom:8px;font-weight:600;
-}
+@keyframes ripple{from{transform:scale(1);opacity:1;}to{transform:scale(2);opacity:0;}}
+.dispatch-status{font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:600;}
 .fire-dispatch .dispatch-status{color:#fc8181;}
 .health-dispatch .dispatch-status{color:#63b3ed;}
 .security-dispatch .dispatch-status{color:#b794f4;}
-
 .dispatch-title{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;color:#fff;margin-bottom:10px;}
 .dispatch-sub{font-size:13px;color:#718096;line-height:1.6;margin-bottom:8px;}
-.dispatch-eta{
-  font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:600;
-  margin-bottom:28px;
-}
+.dispatch-eta{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:600;margin-bottom:28px;}
 .fire-dispatch .dispatch-eta{color:#fc8181;}
 .health-dispatch .dispatch-eta{color:#63b3ed;}
 .security-dispatch .dispatch-eta{color:#b794f4;}
-
 .dispatch-instructions{
   background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
   border-radius:14px;padding:14px 16px;margin-bottom:24px;width:100%;
@@ -320,7 +342,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 .di-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#4a5568;margin-bottom:8px;font-weight:600;}
 .di-item{font-size:12px;color:#a0aec0;line-height:1.8;display:flex;gap:8px;}
 .di-item::before{content:'›';color:#718096;}
-
 .dismiss-btn{
   border-radius:30px;padding:14px 40px;border:none;
   font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;
@@ -354,35 +375,9 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   width:64px;height:64px;font-size:24px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
 }
-
-/* ── KEY FIX: map container is always rendered, just hidden until needed ── */
-#root-container {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: #050508;
-  /* CHANGED: use visibility+opacity instead of display:none
-     so Three.js ResizeObserver fires on page load and the scene
-     initialises immediately, ready to receive hazard updates */
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-#root-container.map-visible {
-  visibility: visible;
-  opacity: 1;
-  pointer-events: auto;
-}
 </style>
   </head>
   <body>
-
-<!-- ── Map container: always in DOM so React/Three.js mounts on page load ── -->
-<div id="root-container">
-  <div id="root" style="width: 100%; height: 100%; display: flex; flex-direction: column;"></div>
-  <button onclick="exitMap()" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000; padding: 14px 28px; background: #e53e3e; color: white; border: none; border-radius: 30px; font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(229,62,62,0.5);">Close Evacuation Map</button>
-</div>
 
 <div class="phone">
   <div class="statusbar">
@@ -451,7 +446,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     <div id="page-guidelines" class="page">
       <div class="guidelines-content">
         <div class="guidelines-title">Emergency Guidelines</div>
-
         <div class="guideline-item">
           <div class="gi-icon">🔥</div>
           <div>
@@ -460,7 +454,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
             <div class="gi-desc">Stay low, feel the door before opening. Use stairwells — never the elevator. Assemble at the lobby.</div>
           </div>
         </div>
-
         <div class="guideline-item">
           <div class="gi-icon">⚕️</div>
           <div>
@@ -469,7 +462,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
             <div class="gi-desc">Do not move the patient. Keep them calm. Unlock the door and wait for medical staff. Note symptoms.</div>
           </div>
         </div>
-
         <div class="guideline-item">
           <div class="gi-icon">🛡️</div>
           <div>
@@ -478,7 +470,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
             <div class="gi-desc">Do not resist. Silent alarm notifies security. Lock the door if safe. Stay quiet. Do not use voice calls.</div>
           </div>
         </div>
-
         <div class="guideline-item">
           <div class="gi-icon">📋</div>
           <div>
@@ -492,7 +483,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     <div id="page-operator" class="page">
       <div class="operator-content">
         <div class="guidelines-title">Contact Operator</div>
-
         <div class="op-card">
           <div class="op-avatar" style="background:rgba(59,130,246,0.15);">👩‍⚕️</div>
           <div class="op-info">
@@ -501,7 +491,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
           </div>
           <button class="op-call-btn" onclick="startCall('Dr. Meena Pillai','Medical Officer')">📞 Call</button>
         </div>
-
         <div class="op-card">
           <div class="op-avatar" style="background:rgba(239,68,68,0.15);">👨‍🚒</div>
           <div class="op-info">
@@ -510,7 +499,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
           </div>
           <button class="op-call-btn" onclick="startCall('Fire Safety Desk','Fire Response')">📞 Call</button>
         </div>
-
         <div class="op-card">
           <div class="op-avatar" style="background:rgba(139,92,246,0.15);">👮</div>
           <div class="op-info">
@@ -519,7 +507,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
           </div>
           <button class="op-call-btn" onclick="startCall('Security Command','Hotel Security')">📞 Call</button>
         </div>
-
         <div class="op-card">
           <div class="op-avatar" style="background:rgba(200,169,110,0.15);">🛎️</div>
           <div class="op-info">
@@ -531,7 +518,14 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
       </div>
     </div>
 
-  </div>
+    <!-- EVAC MAP PAGE: full-screen, no side padding (margin:-16px cancels .main padding) -->
+    <div id="page-map" class="page">
+      <div id="root-container">
+        <div id="root"></div>
+      </div>
+    </div>
+
+  </div><!-- /.main -->
 
   <div class="bottomnav">
     <div class="nav-item active" id="nav-sos" onclick="showTab('sos')">
@@ -590,9 +584,87 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     <button class="call-endBtn" onclick="endCall()">📵</button>
   </div>
 
-</div>
+</div><!-- /.phone -->
 
 <script>
+// ─────────────────────────────────────────────────────────────────────────────
+// BOOT: Read guestProfile from sessionStorage immediately (before React mounts)
+// so the checkout and nights tiles are never stuck on "--".
+// GuestApp.jsx calls window.updateGuestProfile() again once React is ready,
+// which is a no-op if the values are already the same.
+// ─────────────────────────────────────────────────────────────────────────────
+(function bootGuestTiles() {
+  try {
+    const raw = sessionStorage.getItem('guestProfile');
+    if (!raw) return;
+    const profile = JSON.parse(raw);
+
+    // ── room & name ──────────────────────────────────────────────────────
+    const room = String(
+      profile.room || profile.room_id || profile.room_number || profile.roomId || ''
+    );
+    const name =
+      profile.name || profile.guest_name || profile.full_name || profile.first_name || '';
+    if (room) document.getElementById('ui-guest-room').textContent = 'Room ' + room;
+    if (name) document.getElementById('ui-guest-name').textContent = name;
+
+    // ── floor ────────────────────────────────────────────────────────────
+    const floor =
+      profile.floor != null
+        ? profile.floor
+        : room
+        ? Math.floor(Number(room) / 100)
+        : null;
+    if (floor != null)
+      document.getElementById('ui-guest-floor').textContent = String(floor).padStart(2, '0');
+
+    // ── checkout date ────────────────────────────────────────────────────
+    const rawCheckout =
+      profile.checkOutDate ||
+      profile.check_out ||
+      profile.checkout ||
+      profile.checkOut ||
+      profile.checkout_date ||
+      null;
+
+    // Timezone-safe date parser: "YYYY-MM-DD" strings are UTC midnight in JS.
+    // Appending T00:00:00 forces local-time so toLocaleDateString never rolls back a day.
+    const parseDateSafe = (str) => {
+      if (!str) return null;
+      const s = String(str).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+      return new Date(s);
+    };
+
+    if (rawCheckout) {
+      const d = parseDateSafe(rawCheckout);
+      if (d && !isNaN(d)) {
+        document.getElementById('ui-checkout-date').textContent =
+          d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      }
+    }
+
+    // ── nights ───────────────────────────────────────────────────────────
+    let nights = profile.nights ?? profile.stay_nights ?? null;
+    if (nights == null) {
+      const rawCheckin =
+        profile.checkInDate || profile.check_in || profile.checkin || profile.checkIn || null;
+      if (rawCheckin && rawCheckout) {
+        const ci = parseDateSafe(rawCheckin);
+        const co = parseDateSafe(rawCheckout);
+        if (ci && co && !isNaN(ci) && !isNaN(co)) {
+          nights = Math.round((co - ci) / 86400000);
+        }
+      }
+    }
+    if (nights != null && nights !== '--') {
+      document.getElementById('ui-stay-nights').textContent = String(nights).padStart(2, '0');
+    }
+  } catch (e) {
+    console.warn('[bootGuestTiles] Could not parse guestProfile:', e);
+  }
+})();
+
 const sosTypes = [
   {
     type:'fire', icon:'🔥', name:'FIRE',
@@ -641,15 +713,19 @@ let countdownVal = 5;
 let callTimer = null;
 let callSeconds = 0;
 
+// Called by GuestApp.jsx once React has parsed the profile — updates all tiles
+// and SOS confirm descriptions with room-aware copy.
 window.updateGuestProfile = function(data) {
   if (!data) return;
   if (data.room)         document.getElementById('ui-guest-room').textContent  = 'Room ' + data.room;
   if (data.name)         document.getElementById('ui-guest-name').textContent  = data.name;
   if (data.checkoutDate) document.getElementById('ui-checkout-date').textContent = data.checkoutDate;
-  if (data.nights)       document.getElementById('ui-stay-nights').textContent   = String(data.nights).padStart(2,'0');
-  if (data.floor)        document.getElementById('ui-guest-floor').textContent   = String(data.floor).padStart(2,'0');
+  if (data.nights != null && data.nights !== '--')
+    document.getElementById('ui-stay-nights').textContent = String(data.nights).padStart(2, '0');
+  if (data.floor != null)
+    document.getElementById('ui-guest-floor').textContent = String(data.floor).padStart(2, '0');
 
-  const room = data.room || '';
+  const room  = data.room  || '';
   const floor = data.floor ? 'Floor ' + data.floor : '';
   sosTypes[0].confirmDesc = `This will immediately alert the fire response team and initiate evacuation protocol for ${floor}.`;
   sosTypes[1].confirmDesc = `On-call medical staff and hotel first responders will be dispatched to Room ${room} immediately.`;
@@ -670,44 +746,25 @@ function switchSOS(idx){
   }
 }
 
-// ── CHANGED: showTab now uses visibility/opacity toggle instead of
-//   display:none so the Three.js scene stays mounted and alive at all times.
-//   The scene initialises on page load (ResizeObserver fires because the
-//   element has dimensions even when invisible), so hazard updates that
-//   arrive before the guest opens the map tab are already applied to the
-//   meshes and will be visible instantly when they tap "Evac Map".
 function showTab(tab){
-  if (tab === 'map') {
-    document.getElementById('root-container').classList.add('map-visible');
-    // Fire resize so Three.js camera/renderer recalculates if needed
-    window.dispatchEvent(new Event('resize'));
-    // Tell GuestApp.jsx to replay any buffered hazards onto the bus
-    // (handles the case where hazards arrived before scene was visible)
-    window.dispatchEvent(new CustomEvent('evacmap:open'));
-    // Also update bottom-nav highlight
-    ['sos','guidelines','operator','map'].forEach(t => {
-      const nav = document.getElementById('nav-' + t);
-      if (nav) nav.classList.toggle('active', t === tab);
-    });
-    return;
-  }
-  // Hide map container when switching away
-  document.getElementById('root-container').classList.remove('map-visible');
-  ['sos','guidelines','operator'].forEach(t => {
+  ['sos','guidelines','operator','map'].forEach(t => {
     const page = document.getElementById('page-' + t);
     const nav  = document.getElementById('nav-' + t);
     if (page) page.classList.toggle('active', t === tab);
     if (nav)  nav.classList.toggle('active',  t === tab);
   });
-  // Also clear map nav highlight when on other tabs
-  const mapNav = document.getElementById('nav-map');
-  if (mapNav) mapNav.classList.remove('active');
+
+  // Toggle map-active on .phone to hide/show strips and free full height for map
+  document.querySelector('.phone').classList.toggle('map-active', tab === 'map');
+
+  if (tab === 'map') {
+    window.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new CustomEvent('evacmap:open'));
+  }
 }
 
-// ── CHANGED: exitMap now hides via class removal (matches new approach)
+// exitMap kept for backward-compat if GuestApp.jsx still calls it
 function exitMap() {
-  document.getElementById('root-container').classList.remove('map-visible');
-  // Restore SOS tab as active
   showTab('sos');
 }
 

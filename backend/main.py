@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Body
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
+import datetime
 
 import models
 from database import engine, get_db
@@ -42,6 +43,13 @@ def check_in_guest(guest: schemas.GuestCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Contact number already registered.")
     
     computed_priority = calculate_priority(guest.age, guest.special_needs)
+
+    # Resolve check-in/check-out dates and nights
+    today = datetime.date.today()
+    check_in = guest.check_in_date or today
+    check_out = guest.check_out_date or (today + datetime.timedelta(days=1))
+    delta = (check_out - check_in).days
+    nights = max(delta, 1)
     
     new_guest = models.Guest(
         full_name=guest.full_name,
@@ -51,7 +59,10 @@ def check_in_guest(guest: schemas.GuestCreate, db: Session = Depends(get_db)):
         special_needs=guest.special_needs,
         priority=computed_priority,
         zone_status="Safe",
-        is_evacuated=False
+        is_evacuated=False,
+        check_in_date=check_in,
+        check_out_date=check_out,
+        nights=nights
     )
     db.add(new_guest)
     db.commit()
@@ -83,6 +94,21 @@ def checkout_guest(guest_id: int, db: Session = Depends(get_db)):
     db.delete(guest)
     db.commit()
     return None
+
+
+# --- AUTO-EVICTION ENDPOINT ---
+# Called by the Node.js cron job (server.js) at 11:00 AM daily.
+# Deletes all guests whose check_out_date equals today's date.
+
+@app.delete("/api/guests/auto-evict", status_code=status.HTTP_200_OK)
+def auto_evict_guests(db: Session = Depends(get_db)):
+    today = datetime.date.today()
+    expired = db.query(models.Guest).filter(models.Guest.check_out_date == today).all()
+    count = len(expired)
+    for guest in expired:
+        db.delete(guest)
+    db.commit()
+    return {"evicted": count, "date": str(today)}
 
 
 # Add these imports at the top of your main.py if not present
@@ -120,7 +146,9 @@ def guest_login(payload: schemas.GuestLoginRequest, db: Session = Depends(get_db
                     "guest": {
                         "id": guest.id,
                         "full_name": guest.full_name,
-                        "room": room
+                        "room": room,
+                        "check_out_date": str(guest.check_out_date) if guest.check_out_date else None,
+                        "nights": guest.nights,
                     }
                 }
                 
@@ -129,4 +157,3 @@ def guest_login(payload: schemas.GuestLoginRequest, db: Session = Depends(get_db
         status_code=status.HTTP_401_UNAUTHORIZED, 
         detail="Invalid guest name or room passkey generation combination."
     )
-
