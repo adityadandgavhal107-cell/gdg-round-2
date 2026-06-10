@@ -13,15 +13,17 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Inter',sans-serif;}
 
-.phone{
-  width:375px;min-height:720px;
-  background:#0d0d1a;
-  border-radius:40px;
-  border:2px solid rgba(255,255,255,0.08);
-  overflow:hidden;
-  position:relative;
-  box-shadow:0 40px 80px rgba(0,0,0,0.6);
-  display:flex;flex-direction:column;
+.phone {
+  width: 375px;
+  min-height: 720px;
+  background: #0d0d1a;
+  border-radius: 40px;
+  border: 2px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
 }
 
 /* STATUS BAR */
@@ -343,7 +345,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   background:rgba(72,187,120,0.1);border:2px solid rgba(72,187,120,0.3);
   animation:pulse-call 1.5s ease-in-out infinite;
 }
-@keyframes pulse-call{0%,100%{box-shadow:0 0 0 0 rgba(72,187,120,0.3);}50%{box-shadow:0 0 0 16px rgba(72,187,120,0);}}
+@keyframes pulse-call{0%,100%{box-shadow:0 0 0 0 rgba(72,187,120,0.3);}50%{box-shadow:0 0 16px rgba(72,187,120,0);}}
 .call-name{font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:#fff;margin-bottom:4px;}
 .call-status{font-size:13px;color:#68d391;margin-bottom:8px;}
 .call-timer{font-family:'Rajdhani',sans-serif;font-size:18px;color:#718096;margin-bottom:40px;}
@@ -352,21 +354,44 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   width:64px;height:64px;font-size:24px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
 }
+
+/* ── KEY FIX: map container is always rendered, just hidden until needed ── */
+#root-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #050508;
+  /* CHANGED: use visibility+opacity instead of display:none
+     so Three.js ResizeObserver fires on page load and the scene
+     initialises immediately, ready to receive hazard updates */
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+#root-container.map-visible {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
 </style>
   </head>
   <body>
 
-<div id="root-container" style="display: none; position: fixed; inset: 0; z-index: 9999; background: #050508;">
+<!-- ── Map container: always in DOM so React/Three.js mounts on page load ── -->
+<div id="root-container">
   <div id="root" style="width: 100%; height: 100%; display: flex; flex-direction: column;"></div>
   <button onclick="exitMap()" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000; padding: 14px 28px; background: #e53e3e; color: white; border: none; border-radius: 30px; font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(229,62,62,0.5);">Close Evacuation Map</button>
 </div>
 
 <div class="phone">
-  <!-- STATUS BAR -->
   <div class="statusbar">
     <div class="statusbar-left">
       <div class="guest-icon">👤</div>
-      <div class="statusbar-title">Room 408 · James<br>Mathew</div>
+      <div class="statusbar-title">
+        <span id="ui-guest-room" style="font-weight:700;color:#ff4d4d;">...</span> · 
+        <span id="ui-guest-name">Loading...</span>
+      </div>
     </div>
     <div class="statusbar-right">
       <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
@@ -377,7 +402,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     </div>
   </div>
 
-  <!-- INFO STRIP -->
   <div class="info-strip">
     <div class="info-pill">
       <div class="info-pill-icon">📍</div>
@@ -389,18 +413,27 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     </div>
   </div>
 
-  <!-- TILES -->
   <div class="tiles">
-    <div class="tile"><div class="tile-label">Check-Out</div><div class="tile-value">Apr 28</div></div>
-    <div class="tile"><div class="tile-label">Nights</div><div class="tile-value">04</div></div>
-    <div class="tile"><div class="tile-label">Floor</div><div class="tile-value">04</div></div>
-    <div class="tile"><div class="tile-label">Emergency Ext</div><div class="tile-value">911</div></div>
+    <div class="tile">
+      <div class="tile-label">Check-Out</div>
+      <div class="tile-value" id="ui-checkout-date" style="font-size:15px;">--</div>
+    </div>
+    <div class="tile">
+      <div class="tile-label">Nights</div>
+      <div class="tile-value" id="ui-stay-nights">--</div>
+    </div>
+    <div class="tile">
+      <div class="tile-label">Floor</div>
+      <div class="tile-value" id="ui-guest-floor">--</div>
+    </div>
+    <div class="tile">
+      <div class="tile-label">Emergency Ext</div>
+      <div class="tile-value">101</div>
+    </div>
   </div>
 
-  <!-- PAGES -->
   <div class="main">
 
-    <!-- SOS PAGE -->
     <div id="page-sos" class="page active">
       <div id="sos-card" class="sos-card fire">
         <div class="sos-card-icon" id="sos-icon">🔥</div>
@@ -415,7 +448,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
       </div>
     </div>
 
-    <!-- GUIDELINES PAGE -->
     <div id="page-guidelines" class="page">
       <div class="guidelines-content">
         <div class="guidelines-title">Emergency Guidelines</div>
@@ -457,10 +489,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
       </div>
     </div>
 
-    
-
-
-    <!-- OPERATOR PAGE -->
     <div id="page-operator" class="page">
       <div class="operator-content">
         <div class="guidelines-title">Contact Operator</div>
@@ -505,7 +533,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 
   </div>
 
-  <!-- BOTTOM NAV -->
   <div class="bottomnav">
     <div class="nav-item active" id="nav-sos" onclick="showTab('sos')">
       <div class="nav-icon">🆘</div>
@@ -519,19 +546,17 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
       <div class="nav-icon">📞</div>
       <div class="nav-label">Operator</div>
     </div>
-  
     <div class="nav-item" id="nav-map" onclick="showTab('map')">
       <div class="nav-icon">🗺️</div>
       <div class="nav-label">Evac Map</div>
     </div>
   </div>
 
-  <!-- CONFIRM OVERLAY -->
   <div class="overlay" id="confirm-overlay">
     <div class="confirm-sheet">
       <div class="cs-icon" id="cs-icon">🔥</div>
       <div class="cs-title" id="cs-title">Send Fire Alert?</div>
-      <div class="cs-desc" id="cs-desc">This will immediately alert the fire response team and initiate evacuation protocol for Floor 4.</div>
+      <div class="cs-desc" id="cs-desc">This will immediately alert the fire response team and initiate evacuation protocol.</div>
       <div class="cs-warning" id="cs-warning">⚠️ False alarms may result in a ₹5,000 fee. Only trigger in a real emergency.</div>
       <div class="countdown-wrap">
         <div class="countdown-circle" id="countdown">5</div>
@@ -544,7 +569,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     </div>
   </div>
 
-  <!-- DISPATCHED OVERLAY -->
   <div class="dispatched-overlay fire-dispatch" id="dispatched-overlay">
     <div class="dispatch-ring" id="dispatch-ring">🚨</div>
     <div class="dispatch-status" id="dispatch-status">ALERT SENT</div>
@@ -558,7 +582,6 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     <button class="dismiss-btn" id="dismiss-btn" onclick="closeDismiss()">Return to Home</button>
   </div>
 
-  <!-- CALL OVERLAY -->
   <div class="call-overlay" id="call-overlay">
     <div class="call-avatar">👤</div>
     <div class="call-name" id="call-name">Front Desk</div>
@@ -575,7 +598,7 @@ const sosTypes = [
     type:'fire', icon:'🔥', name:'FIRE',
     desc:'Smoke, flames, or gas leak detected.',
     confirmTitle:'Send Fire Alert?',
-    confirmDesc:'This will immediately alert the fire response team and initiate evacuation protocol for Floor 4.',
+    confirmDesc:'This will immediately alert the fire response team and initiate evacuation protocol.',
     dispatchClass:'fire-dispatch',
     dispatchIcon:'🚨', dispatchStatus:'ALERT SENT',
     dispatchTitle:'Fire Team Dispatched',
@@ -585,14 +608,14 @@ const sosTypes = [
     dotColor:'', btnClass:'fire', dotClass:''
   },
   {
-    type:'health', icon:'⚕️', name:'MEDICAL',
+    type:'medical', icon:'⚕️', name:'MEDICAL',
     desc:'Medical emergency — chest pain, injury or illness.',
     confirmTitle:'Send Medical SOS?',
-    confirmDesc:'On-call medical staff and hotel first responders will be dispatched to Room 408 immediately.',
+    confirmDesc:'On-call medical staff and hotel first responders will be dispatched to your room immediately.',
     dispatchClass:'health-dispatch',
     dispatchIcon:'💙', dispatchStatus:'HELP ON THE WAY',
     dispatchTitle:'Medical Staff Dispatched',
-    dispatchSub:'First responders are on their way to Room 408. Keep the door unlocked and stay calm.',
+    dispatchSub:'First responders are on their way. Keep the door unlocked and stay calm.',
     eta:'ETA: 1–2 minutes',
     steps:['Do not move the patient','Keep them still and calm','Unlock the room door','Note any symptoms to share with medics'],
     dotColor:'blue', btnClass:'health', dotClass:'blue'
@@ -618,6 +641,21 @@ let countdownVal = 5;
 let callTimer = null;
 let callSeconds = 0;
 
+window.updateGuestProfile = function(data) {
+  if (!data) return;
+  if (data.room)         document.getElementById('ui-guest-room').textContent  = 'Room ' + data.room;
+  if (data.name)         document.getElementById('ui-guest-name').textContent  = data.name;
+  if (data.checkoutDate) document.getElementById('ui-checkout-date').textContent = data.checkoutDate;
+  if (data.nights)       document.getElementById('ui-stay-nights').textContent   = String(data.nights).padStart(2,'0');
+  if (data.floor)        document.getElementById('ui-guest-floor').textContent   = String(data.floor).padStart(2,'0');
+
+  const room = data.room || '';
+  const floor = data.floor ? 'Floor ' + data.floor : '';
+  sosTypes[0].confirmDesc = `This will immediately alert the fire response team and initiate evacuation protocol for ${floor}.`;
+  sosTypes[1].confirmDesc = `On-call medical staff and hotel first responders will be dispatched to Room ${room} immediately.`;
+  sosTypes[1].dispatchSub = `First responders are on their way to Room ${room}. Keep the door unlocked and stay calm.`;
+};
+
 function switchSOS(idx){
   currentSOS = idx;
   const s = sosTypes[idx];
@@ -632,22 +670,45 @@ function switchSOS(idx){
   }
 }
 
+// ── CHANGED: showTab now uses visibility/opacity toggle instead of
+//   display:none so the Three.js scene stays mounted and alive at all times.
+//   The scene initialises on page load (ResizeObserver fires because the
+//   element has dimensions even when invisible), so hazard updates that
+//   arrive before the guest opens the map tab are already applied to the
+//   meshes and will be visible instantly when they tap "Evac Map".
 function showTab(tab){
-  if(tab === 'map') {
-    document.getElementById('root-container').style.display = 'block';
+  if (tab === 'map') {
+    document.getElementById('root-container').classList.add('map-visible');
+    // Fire resize so Three.js camera/renderer recalculates if needed
     window.dispatchEvent(new Event('resize'));
+    // Tell GuestApp.jsx to replay any buffered hazards onto the bus
+    // (handles the case where hazards arrived before scene was visible)
+    window.dispatchEvent(new CustomEvent('evacmap:open'));
+    // Also update bottom-nav highlight
+    ['sos','guidelines','operator','map'].forEach(t => {
+      const nav = document.getElementById('nav-' + t);
+      if (nav) nav.classList.toggle('active', t === tab);
+    });
     return;
   }
-  ['sos','guidelines','operator'].forEach(t=>{
-    const page = document.getElementById('page-'+t);
-    const nav = document.getElementById('nav-'+t);
-    if(page) page.classList.toggle('active', t===tab);
-    if(nav) nav.classList.toggle('active', t===tab);
+  // Hide map container when switching away
+  document.getElementById('root-container').classList.remove('map-visible');
+  ['sos','guidelines','operator'].forEach(t => {
+    const page = document.getElementById('page-' + t);
+    const nav  = document.getElementById('nav-' + t);
+    if (page) page.classList.toggle('active', t === tab);
+    if (nav)  nav.classList.toggle('active',  t === tab);
   });
+  // Also clear map nav highlight when on other tabs
+  const mapNav = document.getElementById('nav-map');
+  if (mapNav) mapNav.classList.remove('active');
 }
 
+// ── CHANGED: exitMap now hides via class removal (matches new approach)
 function exitMap() {
-  document.getElementById('root-container').style.display = 'none';
+  document.getElementById('root-container').classList.remove('map-visible');
+  // Restore SOS tab as active
+  showTab('sos');
 }
 
 function openConfirm(){
@@ -675,7 +736,7 @@ function closeConfirm(){
 function dispatch(){
   closeConfirm();
   const s = sosTypes[currentSOS];
-  
+
   if (window.triggerGuestSOS) {
     window.triggerGuestSOS(s.type);
   }
@@ -702,7 +763,7 @@ function startCall(name, role){
   document.getElementById('call-overlay').classList.add('open');
   callTimer = setInterval(()=>{
     callSeconds++;
-    const m = String(Math.floor(callSeconds/60)).padStart(2,'0');
+    const m  = String(Math.floor(callSeconds/60)).padStart(2,'0');
     const s2 = String(callSeconds%60).padStart(2,'0');
     document.getElementById('call-timer').textContent = m+':'+s2;
   }, 1000);
@@ -713,7 +774,6 @@ function endCall(){
   document.getElementById('call-overlay').classList.remove('open');
 }
 
-// Touch/swipe to switch SOS
 let touchStartX = 0;
 document.getElementById('sos-card').addEventListener('touchstart', e=>{ touchStartX = e.touches[0].clientX; });
 document.getElementById('sos-card').addEventListener('touchend', e=>{
@@ -726,5 +786,5 @@ document.getElementById('sos-card').addEventListener('touchend', e=>{
 </script>
 
 <script type="module" src="/src/main-guest.jsx"></script>
-</body>
+  </body>
 </html>

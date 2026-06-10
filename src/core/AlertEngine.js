@@ -1,70 +1,128 @@
 import bus from './EventBus.js';
 
-// Severity thresholds — these should be ≤ the detector's own FIRE_THRESHOLD (0.45)
-// so AlertEngine never silently drops real detections from the FireDetector pipeline.
 const THRESHOLDS = {
-  audio: { confidence: 0.12, severity: 'low' },
-  smoke: { confidence: 0.40, severity: 'medium' },
-  fire:  { confidence: 0.40, severity: 'high' },
+  audio:    { confidence: 0.12, severity: 'low'      },
+  smoke:    { confidence: 0.40, severity: 'medium'   },
+  fire:     { confidence: 0.40, severity: 'high'     },
+  medical:  { confidence: 0.90, severity: 'critical' },
+  health:   { confidence: 0.90, severity: 'critical' }, // alias — guest.html sends 'health'
+  security: { confidence: 0.90, severity: 'high'     },
 };
 
+// One alert per room+type per DEDUP_MS window — covers all socket round-trips
+const DEDUP_MS = 60_000; // 60 seconds
+
 let alertHistory = [];
+
+// Key → { alert object, ts: timestamp }
 let activeAlerts = {};
 
 export function initAlertEngine() {
+  if (initAlertEngine._initialized) return;
+  initAlertEngine._initialized = true;
   bus.on('detection:raw', handleDetection);
 }
 
 function handleDetection(detection) {
-  const { type, confidence, roomId, floor } = detection;
+  // ── 1. Normalize type ─────────────────────────────────────────────
+  const rawType = detection.type || detection.alertType || detection.alert_type || '';
+  const type = rawType === 'health' ? 'medical' : rawType;
+
+  // ── 2. Normalize roomId — backends send it under different keys ───
+  const roomId =
+    detection.roomId        ||
+    detection.room_id       ||
+    detection.room          ||
+    detection.location?.roomId ||
+    'unknown';
+
+  const floor =
+    detection.floor         ||
+    detection.location?.floor ||
+    '—';
+
+  // Confidence: guest SOS always sends 1.0; camera detections send 0–1
+  const confidence =
+    typeof detection.confidence === 'number'
+      ? detection.confidence
+      : 1.0;
+
+  // ── 3. Threshold check ────────────────────────────────────────────
   const threshold = THRESHOLDS[type];
   if (!threshold || confidence < threshold.confidence) return;
 
-  const alertId = `${roomId}_${type}`;
-  const now = new Date().toISOString();
+  // ── 4. Dedup: one alert per room+type per window ──────────────────
+  const dedupKey = `${roomId}__${type}`;
+  const now = Date.now();
 
-  // Prevent duplicate alerts within 10s
-  if (activeAlerts[alertId] && (Date.now() - activeAlerts[alertId].ts) < 10000) return;
+  if (activeAlerts[dedupKey] && (now - activeAlerts[dedupKey].ts) < DEDUP_MS) {
+    console.debug(`[AlertEngine] Suppressed duplicate: ${dedupKey}`);
+    return;
+  }
 
+  // ── 5. Build & store alert ────────────────────────────────────────
   const alert = {
-    id: `alert_${Date.now()}`,
-    timestamp: now,
+    id:        `alert_${now}_${Math.random().toString(36).slice(2, 6)}`,
+    timestamp: new Date(now).toISOString(),
     type,
     confidence: Math.round(confidence * 100),
-    location: { roomId, floor },
-    severity: threshold.severity,
-    status: 'active',
+    location:  { roomId, floor },
+    severity:  threshold.severity,
+    status:    'active',
     affectedGuests: [],
   };
 
-  activeAlerts[alertId] = { ...alert, ts: Date.now() };
+  // Stamp ts immediately — before any async/emit so re-entrant calls see it
+  activeAlerts[dedupKey] = { ...alert, ts: now };
   alertHistory.unshift(alert);
   if (alertHistory.length > 100) alertHistory.pop();
 
-  // Emit structured alert
+  // ── 6. Emit downstream events ─────────────────────────────────────
   bus.emit('alert:new', alert);
 
-  // Update room status on 3D model
-  bus.emit('room:statusChange', { roomId, status: type === 'fire' ? 'fire' : type === 'smoke' ? 'smoke' : 'audio' });
+  bus.emit('room:statusChange', {
+    roomId,
+    status: type === 'fire'     ? 'fire'
+          : type === 'smoke'    ? 'smoke'
+          : type === 'medical'  ? 'medical'
+          : type === 'security' ? 'security'
+          : 'audio',
+  });
 
-  // Auto-escalate: if audio then smoke detected in same room → escalate to high
-  if (type === 'smoke' || type === 'fire') {
+  // DAF escalation — fire, smoke, medical, security all dispatch
+  if (['fire', 'smoke', 'medical', 'security'].includes(type)) {
     bus.emit('alert:escalate', { roomId, type, severity: threshold.severity });
   }
 }
 
 export function resolveAlert(roomId) {
+  // Remove all alert keys belonging to this room
   Object.keys(activeAlerts).forEach(key => {
-    if (key.startsWith(roomId)) delete activeAlerts[key];
+    if (key.startsWith(roomId + '__')) delete activeAlerts[key];
   });
+
+  // Mark matching history entries as resolved
+  alertHistory = alertHistory.map(a =>
+    a.location?.roomId === String(roomId)
+      ? { ...a, status: 'resolved' }
+      : a
+  );
+
   bus.emit('room:statusChange', { roomId, status: 'clear' });
-  bus.emit('alert:resolved', { roomId });
+
+  // ── Emit alert:resolved with live active count so TopBar badge stays in sync ──
+  bus.emit('alert:resolved', {
+    roomId,
+    remainingCount: Object.keys(activeAlerts).length,
+  });
 }
 
-export function getAlertHistory() {
-  return alertHistory;
-}
-
+// Returns only currently active (unresolved) alerts
 export function getActiveAlerts() {
   return Object.values(activeAlerts);
+}
+
+// Returns full history including resolved alerts
+export function getAlertHistory() {
+  return alertHistory;
 }

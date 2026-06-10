@@ -329,6 +329,15 @@ html, body, #root {
 .alert-item.fire   { background: var(--fire-red-dim); border-color: rgba(255,45,45,0.3); }
 .alert-item.smoke  { background: var(--smoke-dim);    border-color: rgba(255,107,26,0.3); }
 .alert-item.audio  { background: var(--audio-dim);    border-color: rgba(255,215,0,0.3); }
+/* Medical & Security alert types */
+.alert-item.medical  { background: rgba(0, 200, 255, 0.08);  border-color: rgba(0, 200, 255, 0.3); }
+.alert-item.security { background: rgba(168, 85, 247, 0.10); border-color: rgba(168, 85, 247, 0.3); }
+
+.alert-type-badge.medical  { color: #00c8ff; }
+.alert-type-badge.security { color: #a855f7; }
+
+.alert-confidence.medical  { color: #00c8ff; }
+.alert-confidence.security { color: #a855f7; }
 
 .alert-item:hover { filter: brightness(1.2); }
 

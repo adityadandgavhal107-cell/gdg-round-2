@@ -1,169 +1,385 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import HotelView3D from './views/HotelView3D.jsx';
 import { hotelData, findEvacuationPath } from './data/hotel.js';
 import config from './core/config.js';
+import bus from './core/EventBus.js';
 
 export default function GuestApp() {
-  const [roomId, setRoomId] = useState('408');
+  const [roomId, setRoomId] = useState('');
   const [path, setPath] = useState([]);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [guestProfile, setGuestProfile] = useState(null);
 
-  // Real-time hazards
-  const [blockedRooms, setBlockedRooms] = useState([]);
+  // Hazard map: { "104": { type: "fire", intensity: 1.0 }, ... }
+  const [roomHazards, setRoomHazards] = useState({});
+  // Ref mirror — always current inside closures
+  const roomHazardsRef = useRef({});
   const [socketConnected, setSocketConnected] = useState(false);
+  const [viewMode, setViewMode] = useState('map');
 
-  // POV Settings
-  const [viewMode, setViewMode] = useState('map'); // 'map' | 'pov'
+  // Refs so the single socket closure always reads latest values
+  const roomIdRef       = useRef(roomId);
+  const guestProfileRef = useRef(guestProfile);
+  useEffect(() => { roomIdRef.current = roomId; }, [roomId]);
+  useEffect(() => { guestProfileRef.current = guestProfile; }, [guestProfile]);
 
-  // Network offline tracker
+  // ── applyHazard: set a room on fire/smoke/buffer ──────────────────────
+  // Emits 'room:statusChange' on the bus — stored in history — so any
+  // HotelView3D that mounts later replays the correct final state.
+  const applyHazard = (id, type, intensity = 1.0) => {
+    const sid = String(id);
+    const busStatus = type === 'buffer' ? 'smoke' : type;
+    roomHazardsRef.current = { ...roomHazardsRef.current, [sid]: { type, intensity } };
+    setRoomHazards({ ...roomHazardsRef.current });
+    // Always use 'room:statusChange' (not 'alert:resolved') so history is ordered correctly
+    bus.emit('room:statusChange', { roomId: sid, status: busStatus });
+  };
+
+  // ── clearHazard: mark a room safe ────────────────────────────────────
+  // CRITICAL: emit 'room:statusChange' with status='clear' — NOT 'alert:resolved'.
+  // If we emitted 'alert:resolved' it would be stored in a SEPARATE history channel
+  // and replayed out-of-order, causing fire→clear ping-pong on new mounts.
+  const clearHazard = (id) => {
+    const sid = String(id);
+    const next = { ...roomHazardsRef.current };
+    delete next[sid];
+    roomHazardsRef.current = next;
+    setRoomHazards({ ...next });
+    bus.emit('room:statusChange', { roomId: sid, status: 'clear' });
+  };
+
+  // ── Re-broadcast all current hazards so HotelView3D repaints on tab open
+  const replayHazardsOnBus = () => {
+    const hazards = roomHazardsRef.current;
+    Object.entries(hazards).forEach(([id, { type }]) => {
+      const busStatus = type === 'buffer' ? 'smoke' : type;
+      bus.emit('room:statusChange', { roomId: id, status: busStatus });
+    });
+  };
+
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.__replayHazards = replayHazardsOnBus;
+    return () => { delete window.__replayHazards; };
+  }, []);
+
+  useEffect(() => {
+    const onMapOpen = () => {
+      if (Object.keys(roomHazardsRef.current).length > 0) {
+        setTimeout(replayHazardsOnBus, 300);
+        setTimeout(replayHazardsOnBus, 900);
+      }
+    };
+    window.addEventListener('evacmap:open', onMapOpen);
+    window.addEventListener('resize', onMapOpen);
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('evacmap:open', onMapOpen);
+      window.removeEventListener('resize', onMapOpen);
     };
   }, []);
 
-  // WebRTC Live Telemetry
+  // ── Load guest profile ─────────────────────────────────────────────────
+  useEffect(() => {
+    const loadGuestProfile = () => {
+      try {
+        const raw = sessionStorage.getItem('guestProfile');
+        if (!raw) {
+          console.warn('[GuestApp] No guestProfile in sessionStorage.');
+          return;
+        }
+        const profile = JSON.parse(raw);
+        console.log('[GuestApp] Raw profile from API:', profile);
+
+        const name  = profile.name || profile.guest_name || profile.full_name || profile.first_name || 'Guest';
+        const room  = String(profile.room || profile.room_id || profile.room_number || profile.roomId || '');
+        const floor = profile.floor ?? (room ? Math.floor(Number(room) / 100) : '--');
+
+        const rawCheckout = profile.check_out || profile.checkout || profile.checkOut || profile.checkout_date || null;
+        const checkoutDisplay = rawCheckout
+          ? new Date(rawCheckout).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+          : '--';
+
+        const rawCheckin = profile.check_in || profile.checkin || profile.checkIn || null;
+        let nights = profile.nights ?? profile.stay_nights ?? '--';
+        if (nights === '--' && rawCheckin && rawCheckout) {
+          nights = Math.round((new Date(rawCheckout) - new Date(rawCheckin)) / 86400000);
+        }
+
+        const normalised = { name, room, floor, nights, checkoutDate: checkoutDisplay };
+        setGuestProfile(normalised);
+        if (room) setRoomId(room);
+
+        if (window.updateGuestProfile) {
+          window.updateGuestProfile(normalised);
+        } else {
+          setTimeout(() => window.updateGuestProfile?.(normalised), 300);
+        }
+      } catch (err) {
+        console.error('[GuestApp] Failed to parse guest profile:', err);
+      }
+    };
+    loadGuestProfile();
+  }, []);
+
+  // ── Network offline tracker ────────────────────────────────────────────
+  useEffect(() => {
+    const on  = () => setIsOffline(false);
+    const off = () => setIsOffline(true);
+    window.addEventListener('online',  on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online',  on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+
+  // ── WebSocket — created ONCE, never recreated ─────────────────────────
+  // roomId/guestProfile are read via refs so we never need to reconnect.
   useEffect(() => {
     const socket = io(config.socketUrl, { path: config.socketPath });
 
-    // Expose to window for guest.html SOS trigger
     window.triggerGuestSOS = (type) => {
+      const targetRoom = roomIdRef.current || guestProfileRef.current?.room || '000';
       socket.emit('detection:manual', {
-        roomId: roomId || '408', // using state roomId or default
-        type: type,
+        roomId:     targetRoom,
+        type,
         confidence: 1.0,
-        source: 'guest_sos'
+        source:     'guest_sos',
       });
-      console.log(`[Guest] SOS triggered: ${type} for Room ${roomId}`);
+      console.log(`[Guest] SOS triggered: ${type} for Room ${targetRoom}`);
     };
 
-    socket.on('connect', () => setSocketConnected(true));
+    socket.on('connect', () => {
+      console.log('[GUEST] Socket connected:', socket.id);
+      setSocketConnected(true);
+    });
     socket.on('disconnect', () => setSocketConnected(false));
 
-    // Listen for room fires directly from Admin relay
+    // ── hazards:init — full authoritative state on connect ────────────
+    socket.on('hazards:init', (fullMap) => {
+      console.log('[GUEST] hazards:init received:', fullMap);
+      // Reset to exactly the server's state
+      roomHazardsRef.current = {};
+      Object.entries(fullMap).forEach(([id, { type, intensity }]) => {
+        const sid = String(id);
+        const busStatus = type === 'buffer' ? 'smoke' : type;
+        roomHazardsRef.current[sid] = { type, intensity };
+        bus.emit('room:statusChange', { roomId: sid, status: busStatus });
+      });
+      setRoomHazards({ ...roomHazardsRef.current });
+    });
+
+    // ── hazards:update — authoritative broadcast after every change ───
+    // This is what fires on ALL clients when any guest triggers SOS.
+    // We use 'room:statusChange' for both additions and removals so that
+    // the EventBus history channel stays consistent and ordered.
+    socket.on('hazards:update', (fullMap) => {
+      console.log('[GUEST] hazards:update received:', fullMap);
+
+      const previousIds = new Set(Object.keys(roomHazardsRef.current));
+      const newRef = {};
+
+      // Apply every room in the server's authoritative map
+      Object.entries(fullMap).forEach(([id, { type, intensity }]) => {
+        const sid = String(id);
+        const busStatus = type === 'buffer' ? 'smoke' : type;
+        newRef[sid] = { type, intensity };
+        bus.emit('room:statusChange', { roomId: sid, status: busStatus });
+        previousIds.delete(sid);
+      });
+
+      // Rooms no longer in server map → emit clear via room:statusChange
+      // (NOT alert:resolved — that would pollute a separate history channel)
+      previousIds.forEach(id => {
+        console.log(`[GUEST] hazards:update — clearing stale room ${id}`);
+        bus.emit('room:statusChange', { roomId: id, status: 'clear' });
+      });
+
+      roomHazardsRef.current = newRef;
+      setRoomHazards({ ...newRef });
+    });
+
+    // ── Legacy events — hazards:update is canonical, these are fallbacks
     socket.on('detection:alert', (alert) => {
+      console.log('[GUEST] detection:alert received:', alert);
       if (alert.type === 'fire' || alert.type === 'smoke') {
-        const id = String(alert.roomId);
-        setBlockedRooms(prev => prev.includes(id) ? prev : [...prev, id]);
+        const sid = String(alert.roomId);
+        if (!roomHazardsRef.current[sid]) {
+          const busStatus = alert.type === 'buffer' ? 'smoke' : alert.type;
+          roomHazardsRef.current = { ...roomHazardsRef.current, [sid]: { type: alert.type, intensity: alert.confidence || 1.0 } };
+          setRoomHazards({ ...roomHazardsRef.current });
+          bus.emit('room:statusChange', { roomId: sid, status: busStatus });
+        }
       }
+    });
+
+    socket.on('alert:escalate', (data) => {
+      console.log('[GUEST] alert:escalate received:', data);
+      if (data && data.roomId) {
+        const sid  = String(data.roomId);
+        const type = data.type || 'fire';
+        if (!roomHazardsRef.current[sid]) {
+          const busStatus = type === 'buffer' ? 'smoke' : type;
+          const intensity = data.intensity !== undefined ? data.intensity : 1.0;
+          roomHazardsRef.current = { ...roomHazardsRef.current, [sid]: { type, intensity } };
+          setRoomHazards({ ...roomHazardsRef.current });
+          bus.emit('room:statusChange', { roomId: sid, status: busStatus });
+        }
+      }
+    });
+
+    // alert:resolved from server — clear via room:statusChange (not alert:resolved bus event)
+    socket.on('alert:resolved', ({ roomId: resolvedRoom }) => {
+      if (!resolvedRoom) return;
+      const sid = String(resolvedRoom);
+      console.log(`[GUEST] alert:resolved — clearing room ${sid}`);
+      const next = { ...roomHazardsRef.current };
+      delete next[sid];
+      roomHazardsRef.current = next;
+      setRoomHazards({ ...next });
+      bus.emit('room:statusChange', { roomId: sid, status: 'clear' });
     });
 
     return () => {
       socket.disconnect();
       delete window.triggerGuestSOS;
     };
-  }, [roomId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // AI Voice Guidance
+  // ── Voice guidance ─────────────────────────────────────────────────────
   const speakInstructions = (text) => {
     if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); // Interrupt current speech
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
+    utterance.rate  = 0.9;
     utterance.pitch = 1.1;
     window.speechSynthesis.speak(utterance);
   };
 
-  // Recalculate path dynamically if hazards change
+  // ── Dijkstra path recalc whenever roomId or hazards change ────────────
   useEffect(() => {
-    if (path.length > 0) {
-      handleGeneratePath();
-      if (blockedRooms.length > 0) {
-        speakInstructions(`⚠️ Attention. Hazard detected. Rerouting your path to avoid Room ${blockedRooms[blockedRooms.length - 1]}. Please follow updated directions.`);
-      }
-    } else if (blockedRooms.length > 0 && blockedRooms.includes(roomId)) {
-      speakInstructions(`🚨 Emergency Alert. Hazard detected in your room. Please evacuate immediately!`);
+    if (roomId) {
+      const dynamicPath = findEvacuationPath(roomId, roomHazards);
+      setPath(dynamicPath);
     }
-  }, [blockedRooms]);
 
-  const handleGeneratePath = () => {
-    if (!hotelData.graph[roomId]) {
-      alert('Invalid room ID');
-      return;
+    const fireRooms = Object.keys(roomHazards).filter(
+      id => roomHazards[id].type === 'fire' || roomHazards[id].type === 'smoke'
+    );
+
+    if (fireRooms.length > 0) {
+      if (fireRooms.includes(roomId)) {
+        speakInstructions('Emergency Alert. Hazard detected in your room. Please evacuate immediately!');
+      } else if (path.length > 0) {
+        speakInstructions(
+          `Attention. Hazard detected. Rerouting your path to avoid Room ${fireRooms[fireRooms.length - 1]}. Please follow updated directions.`
+        );
+      }
     }
-    const safePath = findEvacuationPath(roomId, blockedRooms);
+  }, [roomId, roomHazards]);
+
+  // ── Find Exit button ───────────────────────────────────────────────────
+  const handleGeneratePath = () => {
+    if (!hotelData.graph[roomId]) { alert('Invalid room ID'); return; }
+    const safePath = findEvacuationPath(roomId, roomHazards);
     setPath(safePath);
     if (safePath.length > 0) {
       speakInstructions(`Path found. Proceed to the nearest exit via rooms ${safePath.slice(1, 4).join(', ')}.`);
     }
   };
 
+  const blockedRoomsList = Object.keys(roomHazards).filter(
+    id => roomHazards[id].type === 'fire' || roomHazards[id].type === 'buffer'
+  );
+
+  const alertRooms = Object.keys(roomHazards).filter(
+    id => roomHazards[id].type === 'fire' || roomHazards[id].type === 'smoke'
+  );
+
+  const derivedRoomStatuses = {};
+  Object.entries(roomHazards).forEach(([id, hazard]) => {
+    derivedRoomStatuses[id] = hazard.type === 'buffer' ? 'smoke' : hazard.type;
+  });
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#050508', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
-
-      {/* Header removed as guest.html has its own phone status bar */}
-
-      {/* Controls */}
-      <div style={{ padding: '12px 16px', gap: '8px', display: 'flex', flexDirection: 'column', background: '#0a0a0f', zIndex: 10, borderBottom: '1px solid #222' }}>
-        <div>
-          <label style={{ fontSize: '12px', color: '#888', marginBottom: '6px', display: 'block' }}>YOUR ROOM NUMBER</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="text"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              style={{ flex: 1, background: '#111', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '14px' }}
-              placeholder="e.g. 408"
-            />
-            <button
-              onClick={handleGeneratePath}
-              style={{ background: '#00ff88', color: '#000', border: 'none', padding: '0 20px', borderRadius: '8px', fontWeight: 700, fontSize: '14px' }}
-            >
-              FIND EXIT
-            </button>
-          </div>
-        </div>
-
-        {/* View Toggles */}
-        {path.length > 0 && (
-          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-            <button
-              onClick={() => setViewMode('map')}
-              style={{ flex: 1, padding: '10px', background: viewMode === 'map' ? '#2a2a5a' : '#111', color: viewMode === 'map' ? '#fff' : '#888', border: '1px solid #333', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}
-            >
-              🗺️ OVERVIEW MAP
-            </button>
-            <button
-              onClick={() => setViewMode('pov')}
-              style={{ flex: 1, padding: '10px', background: viewMode === 'pov' ? '#2a2a5a' : '#111', color: viewMode === 'pov' ? '#fff' : '#888', border: '1px solid #333', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}
-            >
-              👁️ FIRST PERSON POV
-            </button>
-          </div>
-        )}
-
-        {/* Path Text */}
-        {path.length > 0 && (
-          <div style={{ background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.3)', padding: '12px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#00ff88', marginBottom: '4px', fontWeight: 600 }}>SAFEST ROUTE:</div>
-            <div style={{ fontSize: '14px', lineHeight: 1.4, color: '#ccc' }}>
-              {(path || []).join(' ➔ ')}
-            </div>
-            {blockedRooms.length > 0 && (
-              <div style={{ fontSize: '12px', color: '#ff2d2d', marginTop: '6px', fontWeight: 600 }}>
-                ⚠️ Rerouting around hazards: {blockedRooms.join(', ')}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 3D Map */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0d0d1a', color: '#fff', fontFamily: "'Inter', sans-serif" }}>
       <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
         <HotelView3D
           evacuationPath={path}
           viewMode={viewMode}
           focusRoomId={roomId}
           isGuest={true}
+          alertRooms={alertRooms}
+          roomStatuses={derivedRoomStatuses}
         />
-      </div>
 
+        <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 100 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+            <span style={{ fontSize: '10px', background: '#e53e3e', color: '#fff', padding: '4px 10px', borderRadius: '20px', fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", letterSpacing: '1px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
+              {isOffline ? 'OFFLINE' : 'LIVE MAP'}
+            </span>
+            <span style={{ fontSize: '10px', background: socketConnected ? 'rgba(72,187,120,0.2)' : 'rgba(229,62,62,0.2)', color: socketConnected ? '#68d391' : '#fc8181', border: socketConnected ? '1px solid rgba(72,187,120,0.4)' : '1px solid rgba(229,62,62,0.4)', padding: '4px 10px', borderRadius: '20px', fontWeight: 600, fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.5px', backdropFilter: 'blur(4px)' }}>
+              {socketConnected ? 'TELEMETRY SYNCED' : 'RECONNECTING HUB'}
+            </span>
+          </div>
+
+          <div style={{ background: 'rgba(13, 13, 26, 0.85)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '14px', backdropFilter: 'blur(10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div>
+              <label style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: '11px', fontWeight: 600, color: '#4a5568', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
+                Verify Location Room
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: '#fff', padding: '10px 14px', borderRadius: '10px', fontSize: '14px', outline: 'none', fontFamily: "'Inter', sans-serif" }}
+                  placeholder="e.g. 408"
+                />
+                <button
+                  onClick={handleGeneratePath}
+                  style={{ background: 'linear-gradient(135deg, #fc8181, #e53e3e)', color: '#fff', border: 'none', padding: '0 22px', borderRadius: '10px', fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(229,62,62,0.3)' }}
+                >
+                  FIND EXIT
+                </button>
+              </div>
+            </div>
+
+            {path.length > 0 && (
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => setViewMode('map')}
+                  style={{ flex: 1, padding: '10px', background: viewMode === 'map' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)', color: viewMode === 'map' ? '#fff' : '#a0aec0', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', fontSize: '11px', fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, letterSpacing: '1px' }}
+                >
+                  🗺️ OVERVIEW MAP
+                </button>
+                <button
+                  onClick={() => setViewMode('pov')}
+                  style={{ flex: 1, padding: '10px', background: viewMode === 'pov' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)', color: viewMode === 'pov' ? '#fff' : '#a0aec0', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', fontSize: '11px', fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, letterSpacing: '1px' }}
+                >
+                  👁️ FIRST PERSON POV
+                </button>
+              </div>
+            )}
+          </div>
+
+          {path.length > 0 && (
+            <div style={{ background: 'rgba(13, 13, 26, 0.9)', border: '1px solid rgba(255,255,255,0.08)', padding: '14px', borderRadius: '16px', backdropFilter: 'blur(8px)', boxShadow: '0 10px 25px rgba(0,0,0,0.4)' }}>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: '11px', color: '#63b3ed', marginBottom: '6px', fontWeight: 700, letterSpacing: '1.5px' }}>
+                SAFEST EVACUATION ROUTE:
+              </div>
+              <div style={{ fontSize: '13px', lineHeight: 1.4, color: '#e2e8f0', fontWeight: 500, fontFamily: "'Inter', sans-serif", wordBreak: 'break-all' }}>
+                {(path || []).join(' ➔ ')}
+              </div>
+              {blockedRoomsList.length > 0 && (
+                <div style={{ fontSize: '11px', color: '#fc8181', marginTop: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  ⚠️ Hazards avoided: {blockedRoomsList.join(', ')}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

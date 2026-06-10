@@ -8,6 +8,9 @@ class GuestBase(BaseModel):
     room_assignment: str
     contact_number: Optional[str] = None
     special_needs: Optional[str] = "None"
+    check_in_day: Optional[str] = None  # ISO format string
+    check_out_day: Optional[str] = None  # ISO format string
+    duration_of_stay: Optional[int] = None  # Calculated in days
 
 # Schema expected when checking in a new guest via the UI Form
 class GuestCreate(GuestBase):

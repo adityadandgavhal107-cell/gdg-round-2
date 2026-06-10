@@ -1,20 +1,49 @@
 import { useState, useEffect, useRef } from 'react';
 import bus from '../core/EventBus.js';
-import { getAlertHistory } from '../core/AlertEngine.js';
+import { getAlertHistory, resolveAlert } from '../core/AlertEngine.js';
 
-const TYPE_ICONS = { fire: '🔥', smoke: '💨', audio: '🔊' };
-const TYPE_LABELS = { fire: 'FIRE', smoke: 'SMOKE', audio: 'AUDIO' };
+const TYPE_ICONS = {
+  fire:     '🔥',
+  smoke:    '💨',
+  audio:    '🔊',
+  medical:  '⚕️',
+  security: '🛡️',
+};
+
+const TYPE_LABELS = {
+  fire:     'FIRE',
+  smoke:    'SMOKE',
+  audio:    'AUDIO',
+  medical:  'MEDICAL',
+  security: 'SECURITY',
+};
+
+const TYPE_CLASS = {
+  fire:     'fire',
+  smoke:    'smoke',
+  audio:    'audio',
+  medical:  'medical',
+  security: 'security',
+};
 
 export default function AlertPanel({ onAlertClick }) {
   const [alerts, setAlerts] = useState([]);
+  const [resolving, setResolving] = useState({}); // alertId → true while fading out
   const listRef = useRef(null);
 
   useEffect(() => {
     setAlerts(getAlertHistory());
-    const unsub = bus.on('alert:new', (alert) => {
+
+    const unsubNew = bus.on('alert:new', (alert) => {
       setAlerts(prev => [alert, ...prev].slice(0, 50));
     });
-    return unsub;
+
+    // When DAF resolves from their side, remove it here too
+    const unsubResolved = bus.on('alert:resolved', ({ roomId }) => {
+      setAlerts(prev => prev.filter(a => a.location?.roomId !== roomId));
+    });
+
+    return () => { unsubNew(); unsubResolved(); };
   }, []);
 
   function formatTime(iso) {
@@ -23,6 +52,20 @@ export default function AlertPanel({ onAlertClick }) {
   }
 
   function clearAll() { setAlerts([]); }
+
+  function handleResolve(e, alert) {
+    e.stopPropagation();
+
+    // Mark as fading
+    setResolving(prev => ({ ...prev, [alert.id]: true }));
+
+    // After fade animation (300ms), remove from list + call engine
+    setTimeout(() => {
+      resolveAlert(alert.location?.roomId);
+      setAlerts(prev => prev.filter(a => a.id !== alert.id));
+      setResolving(prev => { const n = { ...prev }; delete n[alert.id]; return n; });
+    }, 300);
+  }
 
   return (
     <div className="alert-panel">
@@ -43,27 +86,63 @@ export default function AlertPanel({ onAlertClick }) {
           </div>
         )}
 
-        {alerts.map((alert) => (
-          <div
-            key={alert.id}
-            className={`alert-item ${alert.type}`}
-            onClick={() => onAlertClick?.(alert)}
-          >
-            <div className={`alert-type-badge ${alert.type}`}>
-              <span>{TYPE_ICONS[alert.type]}</span>
-              <span>{TYPE_LABELS[alert.type] || alert.type.toUpperCase()}</span>
+        {alerts.map((alert) => {
+          const cls = TYPE_CLASS[alert.type] ?? 'audio';
+          const isFading = resolving[alert.id];
+
+          return (
+            <div
+              key={alert.id}
+              className={`alert-item ${cls}`}
+              onClick={() => onAlertClick?.(alert)}
+              style={{
+                opacity: isFading ? 0 : 1,
+                transform: isFading ? 'translateX(20px)' : 'translateX(0)',
+                transition: 'opacity 0.3s ease, transform 0.3s ease',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div className={`alert-type-badge ${cls}`}>
+                  <span>{TYPE_ICONS[alert.type] ?? '⚠️'}</span>
+                  <span>{TYPE_LABELS[alert.type] ?? alert.type.toUpperCase()}</span>
+                </div>
+                {/* Resolve button */}
+                <button
+                  onClick={e => handleResolve(e, alert)}
+                  title="Mark as resolved"
+                  style={{
+                    background: 'rgba(0,255,136,0.08)',
+                    border: '1px solid rgba(0,255,136,0.25)',
+                    borderRadius: 4,
+                    color: 'var(--safe-green)',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    cursor: 'pointer',
+                    letterSpacing: 0.5,
+                    whiteSpace: 'nowrap',
+                    transition: '0.15s',
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,255,136,0.18)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,255,136,0.08)'}
+                >
+                  ✓ RESOLVE
+                </button>
+              </div>
+
+              <div className="alert-room">Room {alert.location?.roomId || '—'}</div>
+              <div className="alert-meta">
+                <span>Floor {alert.location?.floor || '—'}</span>
+                <span className={`alert-confidence ${cls}`}>{alert.confidence}%</span>
+              </div>
+              <div className="alert-meta" style={{ marginTop: 2 }}>
+                <span>{formatTime(alert.timestamp)}</span>
+                <span style={{ textTransform: 'capitalize', fontSize: 10 }}>{alert.severity}</span>
+              </div>
             </div>
-            <div className="alert-room">Room {alert.location?.roomId || '—'}</div>
-            <div className="alert-meta">
-              <span>Floor {alert.location?.floor || '—'}</span>
-              <span className={`alert-confidence ${alert.type}`}>{alert.confidence}%</span>
-            </div>
-            <div className="alert-meta" style={{ marginTop: 2 }}>
-              <span>{formatTime(alert.timestamp)}</span>
-              <span style={{ textTransform: 'capitalize', fontSize: 10 }}>{alert.severity}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
