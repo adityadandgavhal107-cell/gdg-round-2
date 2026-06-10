@@ -4,6 +4,7 @@ import HotelView3D from './views/HotelView3D.jsx';
 import { hotelData, findEvacuationPath } from './data/hotel.js';
 import config from './core/config.js';
 import bus from './core/EventBus.js';
+import { useVoiceGuidance } from './voice-guidance/useVoiceGuidance';
 
 export default function GuestApp() {
   const [roomId, setRoomId] = useState('');
@@ -90,7 +91,7 @@ export default function GuestApp() {
 
         const rawCheckout =
           profile.checkOutDate || profile.check_out || profile.checkout ||
-          profile.checkOut || profile.checkout_date || null;
+          profile.checkOut || profile.checkout_date || profile.check_out_date || null;
 
         // Parse date string in a timezone-safe way.
         // "YYYY-MM-DD" strings are UTC midnight in JS — adding T00:00:00 forces
@@ -254,15 +255,16 @@ export default function GuestApp() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Voice guidance ─────────────────────────────────────────────────────
-  const speakInstructions = (text) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate  = 0.9;
-    utterance.pitch = 1.1;
-    window.speechSynthesis.speak(utterance);
-  };
+  // ── Voice guidance (Siri-like, hotel concierge quality) ───────────────
+  // useVoiceGuidance wires RouteToSpeech + VoiceGuidanceService.
+  // speakRoute  -> converts path[] -> natural instructions -> queued TTS
+  // speakAlert  -> immediate priority speech (interrupts queue)
+  // replay      -> repeat last instruction
+  // The routing algorithm (findEvacuationPath) is NEVER touched here.
+  const { speakRoute, speakAlert, replay } = useVoiceGuidance({
+    guestName:    guestProfile?.name,
+    isEvacuation: true,
+  });
 
   // ── Dijkstra path recalc whenever roomId or hazards change ────────────
   useEffect(() => {
@@ -277,10 +279,10 @@ export default function GuestApp() {
 
     if (fireRooms.length > 0) {
       if (fireRooms.includes(roomId)) {
-        speakInstructions('Emergency Alert. Hazard detected in your room. Please evacuate immediately!');
+        speakAlert('Emergency Alert. A hazard has been detected in your room. Please evacuate immediately!');
       } else if (path.length > 0) {
-        speakInstructions(
-          `Attention. Hazard detected. Rerouting your path to avoid Room ${fireRooms[fireRooms.length - 1]}. Please follow updated directions.`
+        speakAlert(
+          `Attention. A hazard has been detected nearby. Your route has been updated to avoid the affected area. Please follow the revised directions.`
         );
       }
     }
@@ -292,7 +294,9 @@ export default function GuestApp() {
     const safePath = findEvacuationPath(roomId, roomHazards);
     setPath(safePath);
     if (safePath.length > 0) {
-      speakInstructions(`Path found. Proceed to the nearest exit via rooms ${safePath.slice(1, 4).join(', ')}.`);
+      // speakRoute converts the path array into natural instructions and
+      // enqueues them sequentially. The routing algorithm is untouched.
+      speakRoute(safePath, { isEvacuation: true });
     }
   };
 

@@ -321,6 +321,13 @@ io.on('connection', (socket) => {
   });
 });
 
+// ── Fallback: return a clear 404 for any non-socket HTTP request ─────────────
+// Without this, Express returns an empty response (0 B) for unmatched routes,
+// which causes socket.io's XHR polling transport to stall and show 0 B in DevTools.
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found', hint: 'This is the FireGuard signaling server.' });
+});
+
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🔥 FireGuard Signaling Server running on port ${PORT}`);

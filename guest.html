@@ -622,9 +622,9 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     const rawCheckout =
       profile.checkOutDate ||
       profile.check_out ||
-      profile.checkout ||
-      profile.checkOut ||
+      profile.checkout || profile.checkOut ||
       profile.checkout_date ||
+      profile.check_out_date ||
       null;
 
     // Timezone-safe date parser: "YYYY-MM-DD" strings are UTC midnight in JS.
@@ -717,9 +717,9 @@ let callSeconds = 0;
 // and SOS confirm descriptions with room-aware copy.
 window.updateGuestProfile = function(data) {
   if (!data) return;
-  if (data.room)         document.getElementById('ui-guest-room').textContent  = 'Room ' + data.room;
-  if (data.name)         document.getElementById('ui-guest-name').textContent  = data.name;
-  if (data.checkoutDate) document.getElementById('ui-checkout-date').textContent = data.checkoutDate;
+  if (data.room)                    document.getElementById('ui-guest-room').textContent  = 'Room ' + data.room;
+  if (data.name)                    document.getElementById('ui-guest-name').textContent  = data.name;
+  if (data.checkoutDate != null)    document.getElementById('ui-checkout-date').textContent = data.checkoutDate;
   if (data.nights != null && data.nights !== '--')
     document.getElementById('ui-stay-nights').textContent = String(data.nights).padStart(2, '0');
   if (data.floor != null)

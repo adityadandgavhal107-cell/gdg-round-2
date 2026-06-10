@@ -45,9 +45,29 @@ export default function LoginPortal({ onAdminLoginSuccess }) {
         const data = await response.json();
 
         if (response.ok && data.success) {
-          // ── Store full API response so GuestApp.jsx can read it ──
-          // data.guest should contain: name, room/roomId, checkIn, checkOut, floor, etc.
-          sessionStorage.setItem('guestProfile', JSON.stringify(data.guest || data));
+          // ── Normalize API response keys before storing ──
+          // The FastAPI endpoint returns snake_case keys (full_name, check_out_date, room).
+          // GuestApp.jsx and bootGuestTiles in guest.html read camelCase variants,
+          // so we store both forms to satisfy all consumers without breaking anything.
+          const raw = data.guest || data;
+          const normalizedProfile = {
+            // Identity — store both key forms
+            name:          raw.name       || raw.full_name || '',
+            full_name:     raw.full_name  || raw.name      || '',
+            // Room — store both key forms
+            room:          String(raw.room || raw.roomId || raw.room_assignment || ''),
+            roomId:        String(raw.room || raw.roomId || raw.room_assignment || ''),
+            room_id:       String(raw.room || raw.roomId || raw.room_assignment || ''),
+            // Check-out — store all key aliases so every lookup chain hits one
+            checkOutDate:  raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+            check_out_date: raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+            check_out:     raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+            // Nights
+            nights:        raw.nights ?? null,
+            // Pass-through any other fields the API may add in future
+            id:            raw.id,
+          };
+          sessionStorage.setItem('guestProfile', JSON.stringify(normalizedProfile));
 
           // Also store the auth token if your backend returns one
           if (data.token || data.access_token) {
