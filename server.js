@@ -307,7 +307,20 @@ io.on('connection', (socket) => {
     } else {
       applyHazard(roomId, type, confidence);
     }
-
+  
+  // Server-side — when detection:manual is received
+  socket.on('detection:manual', (data) => {
+    // Broadcast to ALL sockets (guests included), not just admin room
+    io.emit('detection:alert', {
+      roomId:     data.roomId,
+      type:       data.type,
+      confidence: data.confidence,
+      source:     data.source,
+      ts:         Date.now(),
+    });
+  });
+  
+  
     // Legacy alert events — kept for backward compatibility with older listeners
     const alert = {
       id: `det_${Date.now()}`,

@@ -12,14 +12,49 @@ const THRESHOLDS = {
 // One alert per room+type per DEDUP_MS window — covers all socket round-trips
 const DEDUP_MS = 60_000; // 60 seconds
 
+const STORAGE_KEY = 'fireguard_active_alerts';
+
 let alertHistory = [];
 
 // Key → { alert object, ts: timestamp }
 let activeAlerts = {};
 
+/* ── Persistence helpers ──────────────────────────────────────────────── */
+function saveActiveAlerts() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(activeAlerts));
+  } catch (e) {
+    console.warn('[AlertEngine] Could not persist alerts:', e);
+  }
+}
+
+function loadActiveAlerts() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    // Restore into memory — skip anything older than 24 h to avoid stale phantom alerts
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    Object.entries(parsed).forEach(([key, entry]) => {
+      if (entry.ts >= cutoff) {
+        activeAlerts[key] = entry;
+        alertHistory.unshift(entry);
+      }
+    });
+    if (alertHistory.length > 100) alertHistory.length = 100;
+  } catch (e) {
+    console.warn('[AlertEngine] Could not load persisted alerts:', e);
+  }
+}
+
 export function initAlertEngine() {
   if (initAlertEngine._initialized) return;
   initAlertEngine._initialized = true;
+
+  // Restore persisted state first so any subscriber that calls getActiveAlerts()
+  // immediately after init sees the correct list.
+  loadActiveAlerts();
+
   bus.on('detection:raw', handleDetection);
 }
 
@@ -77,6 +112,9 @@ function handleDetection(detection) {
   alertHistory.unshift(alert);
   if (alertHistory.length > 100) alertHistory.pop();
 
+  // Persist immediately so a refresh doesn't lose this alert
+  saveActiveAlerts();
+
   // ── 6. Emit downstream events ─────────────────────────────────────
   bus.emit('alert:new', alert);
 
@@ -108,9 +146,12 @@ export function resolveAlert(roomId) {
       : a
   );
 
+  // Persist the updated state (resolved alerts are gone from activeAlerts)
+  saveActiveAlerts();
+
   bus.emit('room:statusChange', { roomId, status: 'clear' });
 
-  // ── Emit alert:resolved with live active count so TopBar badge stays in sync ──
+  // Emit alert:resolved with live active count so TopBar badge stays in sync
   bus.emit('alert:resolved', {
     roomId,
     remainingCount: Object.keys(activeAlerts).length,

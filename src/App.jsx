@@ -8,6 +8,7 @@ import SensorSimPanel from './views/SensorSimPanel.jsx';
 import AlertPanel from './components/AlertPanel.jsx';
 import SplashScreen from './components/SplashScreen.jsx';
 import LandingPage from './components/LandingPage.jsx';
+import PersistentAlertOverlay, { OVERLAY_BANNER_H } from './components/PersistentAlertOverlay.jsx';
 import { io } from 'socket.io-client';
 import bus from './core/EventBus.js';
 import { findEvacuationPath } from './data/hotel.js';
@@ -268,7 +269,10 @@ function AdminDashboard({ onLogout }) {
   const [dafToasts, setDafToasts]       = useState([]);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [roomStatuses, setRoomStatuses] = useState({});
-  const [liveAlerts, setLiveAlerts]     = useState([]);
+
+  // ── liveAlerts drives PersistentAlertOverlay ──────────────────────
+  const [liveAlerts, setLiveAlerts] = useState([]);
+
   const socketRef = useRef(null);
 
   function showDAFToast(roomId, clearedBy) {
@@ -287,6 +291,19 @@ function AdminDashboard({ onLogout }) {
     if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
     onLogout();
   }
+
+  /* ── Admin resolve handler for PersistentAlertOverlay ───────────── */
+  const handleOverlayResolve = useCallback((inc) => {
+    const roomId = String(inc.roomId);
+    // Resolve in AlertEngine
+    resolveAlert(roomId);
+    // Broadcast to DAF via socket
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('alert:resolved', { roomId, clearedBy: 'admin' });
+    }
+    // Local event bus so AlertPanel and 3D map update
+    bus.emit('alert:resolved', { roomId });
+  }, []);
 
   useEffect(() => {
     const socket = io(config.socketUrl, { path: config.socketPath });
@@ -348,7 +365,15 @@ function AdminDashboard({ onLogout }) {
     const unsubNew = bus.on('alert:new', (alert) => {
       const active = getActiveAlerts();
       setAlertCount(active.length);
-      setLiveAlerts([...active]);
+      // Shape active alerts to match PersistentAlertOverlay's incident schema
+      setLiveAlerts(active.map(a => ({
+        id:         a.id,
+        roomId:     String(a.location?.roomId ?? a.roomId ?? '?'),
+        type:       a.type,
+        severity:   a.severity || 'HIGH',
+        confidence: a.confidence || 0.85,
+        _savedAt:   a._savedAt ?? a.timestamp ?? Date.now(),
+      })));
       setAlertCounts(prev => ({
         ...prev,
         cameras: (prev.cameras || 0) + (CAMERA_ALERT_TYPES.has(alert.type) ? 1 : 0),
@@ -359,7 +384,14 @@ function AdminDashboard({ onLogout }) {
     const unsubResolved = bus.on('alert:resolved', ({ roomId }) => {
       const active = getActiveAlerts();
       setAlertCount(active.length);
-      setLiveAlerts([...active]);
+      setLiveAlerts(active.map(a => ({
+        id:         a.id,
+        roomId:     String(a.location?.roomId ?? a.roomId ?? '?'),
+        type:       a.type,
+        severity:   a.severity || 'HIGH',
+        confidence: a.confidence || 0.85,
+        _savedAt:   a._savedAt ?? a.timestamp ?? Date.now(),
+      })));
       if (roomId && !_socketOriginatedResolves.has(String(roomId))) {
         if (socketRef.current?.connected) {
           socketRef.current.emit('alert:resolved', { roomId, clearedBy: 'admin' });
@@ -391,75 +423,85 @@ function AdminDashboard({ onLogout }) {
 
   return (
     <div style={{ display:'flex',flexDirection:'column',width:'100vw',height:'100vh',overflow:'hidden',background:'linear-gradient(135deg,#020408 0%,#050a1a 40%,#020612 100%)',fontFamily:F.display }}>
-      <TopBar alertCount={alertCount} />
 
-      <div style={{ flex:1,display:'flex',overflow:'hidden',minHeight:0 }}>
-        <Sidebar
-          activeView={activeView}
-          onNavigate={handleNavigate}
-          alertCounts={alertCounts}
-          onSignOut={() => setShowLogoutModal(true)}
-        />
+      {/* ── PersistentAlertOverlay: always-on, sits at z-index 99999 top ── */}
+      <PersistentAlertOverlay
+        incidents={liveAlerts}
+        onResolve={handleOverlayResolve}
+      />
 
-        <main style={{ flex:1,position:'relative',overflow:'hidden',minWidth:0 }}>
-          {activeView === 'hotel3d' && (
-            <HotelView3D
-              onRoomClick={handleRoomClick}
-              evacuationPath={evacuationPath}
-              roomStatuses={roomStatuses}
-            />
-          )}
-          {activeView === 'cameras' && <CameraGrid selectedRoom={selectedRoom} />}
-          {activeView === 'guests'  && <GuestDashboard onHighlightRoom={handleHighlightRoom} />}
-          {activeView === 'daf'     && <DAFTeamView />}
-          {activeView === 'sensors' && <SensorSimPanel socket={socketRef.current} />}
-        </main>
+      {/* ── Everything below is offset by the banner height ─────────── */}
+      <div style={{ display:'flex',flexDirection:'column',flex:1,overflow:'hidden',marginTop: OVERLAY_BANNER_H }}>
+        <TopBar alertCount={alertCount} />
 
-        <aside style={{ width:260,height:'100%',display:'flex',flexDirection:'column',background:'rgba(5,8,20,0.88)',backdropFilter:'blur(20px)',borderLeft:'1px solid rgba(100,150,255,0.15)',boxShadow:'-4px 0 40px rgba(0,0,50,0.5)',zIndex:100,flexShrink:0,overflow:'hidden' }}>
-          <div style={{ padding:'16px 16px 12px',borderBottom:'1px solid rgba(100,150,255,0.12)',flexShrink:0 }}>
-            <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-              <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-                <div style={{ width:7,height:7,borderRadius:'50%',background:alertCount>0?'#ff2d2d':'#00ff88',boxShadow:alertCount>0?'0 0 8px #ff2d2d':'0 0 8px #00ff88',animation:alertCount>0?'alertBlink 0.9s ease-in-out infinite':'none' }} />
-                <span style={{ fontFamily:F.display,fontSize:11,fontWeight:700,color:'rgba(220,230,255,0.95)',letterSpacing:1.5,textTransform:'uppercase' }}>Live Alerts</span>
-              </div>
-              {alertCount > 0 && (
-                <span style={{ padding:'2px 8px',borderRadius:10,background:'rgba(255,45,45,0.15)',border:'1px solid rgba(255,45,45,0.35)',fontFamily:F.mono,fontSize:11,fontWeight:800,color:'#ff4444' }}>{alertCount}</span>
-              )}
-            </div>
-          </div>
+        <div style={{ flex:1,display:'flex',overflow:'hidden',minHeight:0 }}>
+          <Sidebar
+            activeView={activeView}
+            onNavigate={handleNavigate}
+            alertCounts={alertCounts}
+            onSignOut={() => setShowLogoutModal(true)}
+          />
 
-          <div style={{ flex:1,overflow:'hidden',display:'flex',flexDirection:'column' }}>
-            <AlertPanel onAlertClick={handleAlertClick} />
-          </div>
+          <main style={{ flex:1,position:'relative',overflow:'hidden',minWidth:0 }}>
+            {activeView === 'hotel3d' && (
+              <HotelView3D
+                onRoomClick={handleRoomClick}
+                evacuationPath={evacuationPath}
+                roomStatuses={roomStatuses}
+              />
+            )}
+            {activeView === 'cameras' && <CameraGrid selectedRoom={selectedRoom} />}
+            {activeView === 'guests'  && <GuestDashboard onHighlightRoom={handleHighlightRoom} />}
+            {activeView === 'daf'     && <DAFTeamView />}
+            {activeView === 'sensors' && <SensorSimPanel socket={socketRef.current} />}
+          </main>
 
-          <div style={{ borderTop:'1px solid rgba(100,150,255,0.12)',padding:'14px 16px',flexShrink:0 }}>
-            <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:11 }}>
-              <span style={{ fontSize:13 }}>🏨</span>
-              <span style={{ fontFamily:F.display,fontSize:10,fontWeight:700,color:'rgba(200,215,255,0.9)',letterSpacing:1.5,textTransform:'uppercase' }}>Overview</span>
-            </div>
-            {[
-              { label:'Total Rooms', value:96,                                                                              color:'rgba(160,160,255,0.9)', bar:null      },
-              { label:'On Fire',     value:Object.values(roomStatuses).filter(s=>s==='fire').length,                        color:'#ff4444',               bar:'#ff2d2d' },
-              { label:'Smoke',       value:Object.values(roomStatuses).filter(s=>s==='smoke').length,                       color:'#ff8c42',               bar:'#ff6b1a' },
-              { label:'Buffer',      value:Object.values(roomStatuses).filter(s=>s==='buffer').length,                      color:'#ffd700',               bar:'#ffd700' },
-              { label:'Security',    value:Object.values(roomStatuses).filter(s=>s==='security').length,                    color:'#a78bfa',               bar:'#8b5cf6' },
-              { label:'Medical',     value:Object.values(roomStatuses).filter(s=>s==='medical').length,                     color:'#22d3ee',               bar:'#06b6d4' },
-              { label:'Clear',       value:96-Object.values(roomStatuses).filter(s=>s&&s!=='clear').length,                 color:'#00ff88',               bar:'#00ff88' },
-            ].map((s,i,arr) => (
-              <div key={s.label} style={{ display:'flex',alignItems:'center',gap:8,padding:'4px 0',borderBottom:i<arr.length-1?'1px solid rgba(255,255,255,0.035)':'none' }}>
-                {s.bar ? <div style={{ width:7,height:7,borderRadius:2,flexShrink:0,background:s.bar,boxShadow:`0 0 5px ${s.bar}88` }} /> : <div style={{ width:7,height:7,flexShrink:0 }} />}
-                <span style={{ fontFamily:F.display,fontSize:11,color:'rgba(150,170,220,0.55)',flex:1,whiteSpace:'nowrap' }}>{s.label}</span>
-                {s.bar && s.value > 0 && (
-                  <div style={{ width:32,height:3,borderRadius:2,background:'rgba(255,255,255,0.05)',overflow:'hidden',flexShrink:0 }}>
-                    <div style={{ height:'100%',width:`${Math.min(100,(s.value/96)*100*6)}%`,background:s.bar,borderRadius:2,transition:'width 0.4s ease' }} />
-                  </div>
+          <aside style={{ width:260,height:'100%',display:'flex',flexDirection:'column',background:'rgba(5,8,20,0.88)',backdropFilter:'blur(20px)',borderLeft:'1px solid rgba(100,150,255,0.15)',boxShadow:'-4px 0 40px rgba(0,0,50,0.5)',zIndex:100,flexShrink:0,overflow:'hidden' }}>
+            <div style={{ padding:'16px 16px 12px',borderBottom:'1px solid rgba(100,150,255,0.12)',flexShrink:0 }}>
+              <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+                <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                  <div style={{ width:7,height:7,borderRadius:'50%',background:alertCount>0?'#ff2d2d':'#00ff88',boxShadow:alertCount>0?'0 0 8px #ff2d2d':'0 0 8px #00ff88',animation:alertCount>0?'alertBlink 0.9s ease-in-out infinite':'none' }} />
+                  <span style={{ fontFamily:F.display,fontSize:11,fontWeight:700,color:'rgba(220,230,255,0.95)',letterSpacing:1.5,textTransform:'uppercase' }}>Live Alerts</span>
+                </div>
+                {alertCount > 0 && (
+                  <span style={{ padding:'2px 8px',borderRadius:10,background:'rgba(255,45,45,0.15)',border:'1px solid rgba(255,45,45,0.35)',fontFamily:F.mono,fontSize:11,fontWeight:800,color:'#ff4444' }}>{alertCount}</span>
                 )}
-                <span style={{ fontFamily:F.mono,fontSize:12,fontWeight:700,color:s.color,minWidth:20,textAlign:'right' }}>{s.value}</span>
               </div>
-            ))}
-          </div>
-          <style>{`@keyframes alertBlink{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
-        </aside>
+            </div>
+
+            <div style={{ flex:1,overflow:'hidden',display:'flex',flexDirection:'column' }}>
+              <AlertPanel onAlertClick={handleAlertClick} />
+            </div>
+
+            <div style={{ borderTop:'1px solid rgba(100,150,255,0.12)',padding:'14px 16px',flexShrink:0 }}>
+              <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:11 }}>
+                <span style={{ fontSize:13 }}>🏨</span>
+                <span style={{ fontFamily:F.display,fontSize:10,fontWeight:700,color:'rgba(200,215,255,0.9)',letterSpacing:1.5,textTransform:'uppercase' }}>Overview</span>
+              </div>
+              {[
+                { label:'Total Rooms', value:96,                                                                              color:'rgba(160,160,255,0.9)', bar:null      },
+                { label:'On Fire',     value:Object.values(roomStatuses).filter(s=>s==='fire').length,                        color:'#ff4444',               bar:'#ff2d2d' },
+                { label:'Smoke',       value:Object.values(roomStatuses).filter(s=>s==='smoke').length,                       color:'#ff8c42',               bar:'#ff6b1a' },
+                { label:'Buffer',      value:Object.values(roomStatuses).filter(s=>s==='buffer').length,                      color:'#ffd700',               bar:'#ffd700' },
+                { label:'Security',    value:Object.values(roomStatuses).filter(s=>s==='security').length,                    color:'#a78bfa',               bar:'#8b5cf6' },
+                { label:'Medical',     value:Object.values(roomStatuses).filter(s=>s==='medical').length,                     color:'#22d3ee',               bar:'#06b6d4' },
+                { label:'Clear',       value:96-Object.values(roomStatuses).filter(s=>s&&s!=='clear').length,                 color:'#00ff88',               bar:'#00ff88' },
+              ].map((s,i,arr) => (
+                <div key={s.label} style={{ display:'flex',alignItems:'center',gap:8,padding:'4px 0',borderBottom:i<arr.length-1?'1px solid rgba(255,255,255,0.035)':'none' }}>
+                  {s.bar ? <div style={{ width:7,height:7,borderRadius:2,flexShrink:0,background:s.bar,boxShadow:`0 0 5px ${s.bar}88` }} /> : <div style={{ width:7,height:7,flexShrink:0 }} />}
+                  <span style={{ fontFamily:F.display,fontSize:11,color:'rgba(150,170,220,0.55)',flex:1,whiteSpace:'nowrap' }}>{s.label}</span>
+                  {s.bar && s.value > 0 && (
+                    <div style={{ width:32,height:3,borderRadius:2,background:'rgba(255,255,255,0.05)',overflow:'hidden',flexShrink:0 }}>
+                      <div style={{ height:'100%',width:`${Math.min(100,(s.value/96)*100*6)}%`,background:s.bar,borderRadius:2,transition:'width 0.4s ease' }} />
+                    </div>
+                  )}
+                  <span style={{ fontFamily:F.mono,fontSize:12,fontWeight:700,color:s.color,minWidth:20,textAlign:'right' }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+            <style>{`@keyframes alertBlink{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
+          </aside>
+        </div>
       </div>
 
       {showLogoutModal && <LogoutModal onConfirm={handleLogoutConfirm} onCancel={() => setShowLogoutModal(false)} />}

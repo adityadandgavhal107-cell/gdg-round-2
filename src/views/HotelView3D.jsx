@@ -66,9 +66,15 @@ export default function HotelView3D({
   const initializedRef   = useRef(false);
   const pendingRef       = useRef([]);
 
+  // Keep latest evacuationPath + isRescueMode in refs so the path effect
+  // always sees the current values without needing to be in its deps array.
+  const evacuationPathRef = useRef(evacuationPath);
+  const isRescueModeRef   = useRef(isRescueMode);
+  useEffect(() => { evacuationPathRef.current = evacuationPath; }, [evacuationPath]);
+  useEffect(() => { isRescueModeRef.current   = isRescueMode;  }, [isRescueMode]);
+
   const [roomStatuses, setRoomStatuses] = useState(() => ({ ...roomStatusesProp }));
   const [hoveredRoom,  setHoveredRoom]  = useState(null);
-  const [overviewExpanded, setOverviewExpanded] = useState(true);
 
   const applyStatusRef = useRef(null);
 
@@ -137,6 +143,71 @@ export default function HotelView3D({
     delete particleSystems.current[roomId];
   }
 
+  // ─── helper: rebuild the path tube from current ref values ──────────────
+  function rebuildPathTube() {
+    const scene = sceneRef.current;
+    if (!scene || !hotelData.graph) return;
+
+    // Remove old tube
+    if (pathLineRef.current) {
+      scene.remove(pathLineRef.current);
+      pathLineRef.current.geometry.dispose();
+      pathLineRef.current.material.dispose();
+      pathLineRef.current = null;
+    }
+
+    const path = evacuationPathRef.current;
+    if (!path || path.length < 2) return;
+
+    const { roomHeight: rH, floorSpacing } = HOTEL_CONFIG;
+    const PODIUM_HEIGHT = floorSpacing;
+
+    const points = [];
+    path.forEach(nodeId => {
+      const node = hotelData.graph[String(nodeId)];
+      if (node?.position) {
+        const yOff = node.type === 'stairwell'
+          ? rH / 2 + 0.5
+          : rH / 2;
+        points.push(new THREE.Vector3(
+          node.position.x,
+          node.position.y + yOff + PODIUM_HEIGHT,
+          node.position.z
+        ));
+      }
+    });
+
+    if (points.length < 2) {
+      console.warn('[HotelView3D] Path has < 2 valid node positions. IDs:', path);
+      console.warn('[HotelView3D] Available graph keys (sample):', Object.keys(hotelData.graph).slice(0, 10));
+      return;
+    }
+
+    const pathColor = isRescueModeRef.current ? 0xff2d2d : 0x00ff88;
+    const curve    = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.1);
+    const tubeGeom = new THREE.TubeGeometry(curve, points.length * 10, 0.25, 8, false);
+    const tube = new THREE.Mesh(tubeGeom, new THREE.MeshStandardMaterial({
+      color: pathColor,
+      emissive: pathColor,
+      emissiveIntensity: 2.5,
+      transparent: true,
+      opacity: 0.9,
+    }));
+    scene.add(tube);
+    pathLineRef.current = tube;
+  }
+
+  // ─── Rebuild path tube whenever evacuationPath prop changes ─────────────
+  useEffect(() => {
+    evacuationPathRef.current = evacuationPath;
+    isRescueModeRef.current   = isRescueMode;
+
+    if (initializedRef.current) {
+      rebuildPathTube();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evacuationPath, isRescueMode]);
+
   useEffect(() => {
     setRoomStatuses(prev => ({ ...prev, ...roomStatusesProp }));
     Object.entries(roomStatusesProp).forEach(([roomId, status]) => {
@@ -168,36 +239,6 @@ export default function HotelView3D({
   }, [alertRooms]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!sceneRef.current || !hotelData.graph) return;
-    if (pathLineRef.current) {
-      sceneRef.current.remove(pathLineRef.current);
-      pathLineRef.current.geometry.dispose();
-      pathLineRef.current = null;
-    }
-    if (evacuationPath && evacuationPath.length > 1) {
-      const points = [];
-      evacuationPath.forEach(nodeId => {
-        const node = hotelData.graph[nodeId];
-        if (node?.position) {
-          const yOff = node.type === 'stairwell' ? HOTEL_CONFIG.roomHeight / 2 + 0.5 : HOTEL_CONFIG.roomHeight / 2;
-          points.push(new THREE.Vector3(node.position.x, node.position.y + yOff, node.position.z));
-        }
-      });
-      if (points.length > 1) {
-        const curve    = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.1);
-        const tubeGeom = new THREE.TubeGeometry(curve, points.length * 10, 0.25, 8, false);
-        const pathColor = isRescueMode ? 0xff2d2d : 0x00ff88;
-        const tube = new THREE.Mesh(tubeGeom, new THREE.MeshStandardMaterial({
-          color: pathColor, emissive: pathColor, emissiveIntensity: 2.5,
-          transparent: true, opacity: 0.9,
-        }));
-        sceneRef.current.add(tube);
-        pathLineRef.current = tube;
-      }
-    }
-  }, [evacuationPath, isRescueMode]);
-
-  useEffect(() => {
     if (!cameraRef.current || !controlsRef.current || !hotelData.graph) return;
     const cam  = cameraRef.current;
     const ctrl = controlsRef.current;
@@ -222,6 +263,10 @@ export default function HotelView3D({
       if (!initializedRef.current) {
         initializedRef.current = true;
         initScene(width, height);
+        // Draw path if one was passed before the scene was ready
+        if (evacuationPathRef.current?.length > 1) {
+          setTimeout(rebuildPathTube, 100);
+        }
       } else {
         if (cameraRef.current) {
           cameraRef.current.aspect = width / height;
@@ -831,10 +876,6 @@ export default function HotelView3D({
   function initScene(W, H) {
     const mount = mountRef.current;
     const { roomWidth: rW, roomDepth: rD, roomHeight: rH, floorSpacing } = HOTEL_CONFIG;
-
-    // ── PODIUM HEIGHT — lifts all room floors above ground/parking ──────────
-    // Floor 1 rooms (101-1xx) will start at PODIUM_HEIGHT instead of ground,
-    // making them fully visible from the default camera angle.
     const PODIUM_HEIGHT = floorSpacing;
 
     const scene = new THREE.Scene();
@@ -907,7 +948,6 @@ export default function HotelView3D({
     const ledMat   = new THREE.MeshStandardMaterial({ color: 0x6699ff, emissive: 0x3366ff, emissiveIntensity: 1.4 });
     const ledWarmMat = new THREE.MeshStandardMaterial({ color: 0x99bbff, emissive: 0x6688dd, emissiveIntensity: 1.0 });
 
-    // ── ROOM MESHES — Y offset by PODIUM_HEIGHT ───────────────────────────
     Object.values(hotelData.graph).forEach(node => {
       if (node.type === 'guest') {
         const geom = new THREE.BoxGeometry(rW - 0.15, rH - 0.1, rD - 0.15);
@@ -921,7 +961,6 @@ export default function HotelView3D({
           metalness:         0.6,
         });
         const mesh = new THREE.Mesh(geom, mat);
-        // ▶ CHANGED: + PODIUM_HEIGHT lifts Floor 1 rooms above ground level
         mesh.position.set(node.position.x, node.position.y + rH / 2 + PODIUM_HEIGHT, node.position.z);
         mesh.castShadow    = true;
         mesh.receiveShadow = true;
@@ -952,7 +991,6 @@ export default function HotelView3D({
           step.position.set(0, i * stepH + stepH / 2, -1.8 + i * stepD + stepD / 2);
           group.add(step);
         }
-        // ▶ CHANGED: + PODIUM_HEIGHT
         group.position.set(node.position.x, node.position.y + PODIUM_HEIGHT, node.position.z);
         scene.add(group);
 
@@ -964,18 +1002,15 @@ export default function HotelView3D({
             transparent: true, opacity: 0.8,
           })
         );
-        // ▶ CHANGED: + PODIUM_HEIGHT
         mesh.position.set(node.position.x, node.position.y + rH / 2 + 0.5 + PODIUM_HEIGHT, node.position.z);
         scene.add(mesh);
       }
     });
 
-    // ── FLOOR ASSEMBLY — each fy shifted up by PODIUM_HEIGHT ─────────────
     const buildingW = 52;
     const buildingD = 20;
 
     for (let f = 1; f <= 8; f++) {
-      // ▶ CHANGED: + PODIUM_HEIGHT shifts all floor slabs, columns, glass panels
       const fy = (f - 1) * floorSpacing + PODIUM_HEIGHT;
       const isAccentFloor = f === 1 || f === 4 || f === 8;
 
@@ -1051,7 +1086,6 @@ export default function HotelView3D({
         scene.add(sidePanelL);
       }
 
-      // ▶ Floor label — positioned at fy which already includes PODIUM_HEIGHT
       const fl = document.createElement('div');
       fl.textContent   = `FLOOR ${f}`;
       fl.style.cssText = 'color:rgba(80,80,140,0.9);font-size:10px;font-weight:700;font-family:JetBrains Mono,monospace;letter-spacing:2px;';
@@ -1060,8 +1094,6 @@ export default function HotelView3D({
       scene.add(flObj);
     }
 
-    // ── ROOFTOP — also shifted by PODIUM_HEIGHT ───────────────────────────
-    // ▶ CHANGED: + PODIUM_HEIGHT
     const roofY = 8 * floorSpacing + PODIUM_HEIGHT;
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x181c33, roughness: 0.7, metalness: 0.4 });
 
@@ -1120,22 +1152,14 @@ export default function HotelView3D({
     antennaLight.position.set(0, roofY + 0.7 + 5.5, 0);
     scene.add(antennaLight);
 
-    // ── STRUCTURAL PODIUM / FOUNDATION BASE ────────────────────────────────
-    // This architectural base elevates the hotel above ground/parking level.
-    // Floor 1 rooms sit directly on top of this podium, making 101–1xx fully
-    // visible from the default camera angle even when fire/smoke alerts fire.
+    // ── Structural podium ────────────────────────────────────────────────
     const podiumFoundationMat = new THREE.MeshStandardMaterial({
-      color: 0x141828,
-      roughness: 0.75,
-      metalness: 0.45,
+      color: 0x141828, roughness: 0.75, metalness: 0.45,
     });
     const podiumFoundationTrimMat = new THREE.MeshStandardMaterial({
-      color: 0x3355aa,
-      emissive: 0x2244aa,
-      emissiveIntensity: 0.9,
+      color: 0x3355aa, emissive: 0x2244aa, emissiveIntensity: 0.9,
     });
 
-    // Main podium body fills the full PODIUM_HEIGHT beneath Floor 1
     const podiumBody = new THREE.Mesh(
       new THREE.BoxGeometry(buildingW + 2, PODIUM_HEIGHT - 0.2, buildingD + 2),
       podiumFoundationMat
@@ -1145,11 +1169,8 @@ export default function HotelView3D({
     podiumBody.receiveShadow = true;
     scene.add(podiumBody);
 
-    // Podium top cap — distinct surface reads as a finished floor
     const podiumTopMat = new THREE.MeshStandardMaterial({
-      color: 0x1a2040,
-      roughness: 0.55,
-      metalness: 0.5,
+      color: 0x1a2040, roughness: 0.55, metalness: 0.5,
     });
     const podiumTop = new THREE.Mesh(
       new THREE.BoxGeometry(buildingW + 2.4, 0.2, buildingD + 2.4),
@@ -1159,7 +1180,6 @@ export default function HotelView3D({
     podiumTop.receiveShadow = true;
     scene.add(podiumTop);
 
-    // Podium LED trim — front
     const podLedF = new THREE.Mesh(
       new THREE.BoxGeometry(buildingW + 2, 0.07, 0.1),
       podiumFoundationTrimMat
@@ -1167,12 +1187,10 @@ export default function HotelView3D({
     podLedF.position.set(0, PODIUM_HEIGHT - 0.08, (buildingD + 2) / 2 + 0.06);
     scene.add(podLedF);
 
-    // Podium LED trim — back
     const podLedB = podLedF.clone();
     podLedB.position.set(0, PODIUM_HEIGHT - 0.08, -(buildingD + 2) / 2 - 0.06);
     scene.add(podLedB);
 
-    // Podium LED trim — sides
     const podLedSide = new THREE.Mesh(
       new THREE.BoxGeometry(0.1, 0.07, buildingD + 2),
       podiumFoundationTrimMat
@@ -1183,7 +1201,6 @@ export default function HotelView3D({
     podLedSideR.position.set(-(buildingW + 2) / 2 - 0.06, PODIUM_HEIGHT - 0.08, 0);
     scene.add(podLedSideR);
 
-    // Podium decorative columns — front face
     const podColMat = new THREE.MeshStandardMaterial({ color: 0x1c2138, roughness: 0.3, metalness: 0.85 });
     for (let pc = -5; pc <= 5; pc++) {
       const pcol = new THREE.Mesh(
@@ -1198,15 +1215,9 @@ export default function HotelView3D({
       scene.add(pcolBk);
     }
 
-    // Podium lobby glass panels (front face — ground-level service/lobby)
     const podiumGlassMat = new THREE.MeshStandardMaterial({
-      color: 0x2a3a6a,
-      emissive: 0x111f44,
-      emissiveIntensity: 0.4,
-      transparent: true,
-      opacity: 0.55,
-      roughness: 0.05,
-      metalness: 0.7,
+      color: 0x2a3a6a, emissive: 0x111f44, emissiveIntensity: 0.4,
+      transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.7,
     });
     for (let pg = -4; pg <= 4; pg++) {
       const pgPanel = new THREE.Mesh(
@@ -1221,10 +1232,9 @@ export default function HotelView3D({
       scene.add(pgPanel);
     }
 
-    // ── ENVIRONMENT ───────────────────────────────────────────────────────
     addEnvironment(scene);
 
-    // ── FLUSH PENDING STATUS UPDATES ─────────────────────────────────────
+    // ── Flush pending status updates ────────────────────────────────────
     const mergedFlush = new Map();
     Object.entries(roomStatusesProp).forEach(([id, status]) => mergedFlush.set(String(id), status));
     pendingRef.current.forEach(({ roomId, status }) => mergedFlush.set(String(roomId), status));
@@ -1234,7 +1244,11 @@ export default function HotelView3D({
       if (status && status !== 'clear' && !mergedFlush.has(String(id))) applyStatusRef.current(String(id), status);
     });
 
-    // ── RAYCASTER / INTERACTION ───────────────────────────────────────────
+    // ── Draw evacuation path if one was already set ──────────────────────
+    // (e.g. guest clicked "Find Exit" before the scene finished loading)
+    rebuildPathTube();
+
+    // ── Raycaster / interaction ──────────────────────────────────────────
     const raycaster = new THREE.Raycaster();
     const mouse     = new THREE.Vector2();
     const meshList  = Object.values(roomMeshes.current);
@@ -1270,7 +1284,7 @@ export default function HotelView3D({
     renderer.domElement.addEventListener('mousedown',  onMouseDown);
     renderer.domElement.addEventListener('click',      onClick);
 
-    // ── ANIMATION LOOP ────────────────────────────────────────────────────
+    // ── Animation loop ───────────────────────────────────────────────────
     let tick = 0;
     function animate() {
       animRef.current = requestAnimationFrame(animate);
@@ -1326,16 +1340,6 @@ export default function HotelView3D({
   const alertCount    = alertRooms.length;
   const affectedCount = fireCount + smokeCount + bufferCount + securityCount + medicalCount + alertCount;
   const clearCount    = 96 - affectedCount;
-
-  const overviewStats = [
-    { label: 'Total Rooms', value: 96,              color: 'rgba(160,160,255,0.9)', bar: null },
-    { label: 'On Fire',     value: fireCount + alertCount, color: '#ff4444', bar: '#ff2d2d' },
-    { label: 'Smoke',       value: smokeCount,       color: '#ff8c42', bar: '#ff6b1a' },
-    { label: 'Buffer',      value: bufferCount,      color: '#ffd700', bar: '#ffd700' },
-    { label: 'Security',    value: securityCount,    color: '#a78bfa', bar: '#8b5cf6' },
-    { label: 'Medical',     value: medicalCount,     color: '#22d3ee', bar: '#06b6d4' },
-    { label: 'Clear',       value: clearCount,       color: '#00ff88', bar: '#00ff88' },
-  ];
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: '100%', background: '#0a0a0f' }}>

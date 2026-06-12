@@ -200,6 +200,98 @@ const STYLES = `
     color: #00d2ff; text-transform: uppercase;
   }
 
+  /* ── Login dropdown (replaces RESPONSE LOGS link) ── */
+  .fg-login-dropdown { position: relative; }
+  .fg-login-dropdown-btn {
+    display: flex; align-items: center; gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; letter-spacing: 0.2em;
+    background: transparent; border: none; cursor: pointer;
+    color: rgba(196,199,197,1); font-weight: 500;
+    transition: color 0.2s ease; padding: 4px 8px;
+  }
+  .fg-login-dropdown-btn:hover,
+  .fg-login-dropdown-btn.open { color: #00d2ff; }
+  .fg-login-dropdown-btn .material-symbols-outlined {
+    font-size: 18px;
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+  .fg-login-dropdown-btn.open .material-symbols-outlined { transform: rotate(180deg); }
+
+  .fg-login-dropdown-menu {
+    position: absolute; top: calc(100% + 14px); right: 0;
+    min-width: 230px;
+    background: #1c1b1c;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    opacity: 0; visibility: hidden;
+    transform: translateY(-12px) scale(0.97);
+    transform-origin: top right;
+    transition: opacity 0.25s cubic-bezier(0.4,0,0.2,1),
+                transform 0.25s cubic-bezier(0.4,0,0.2,1),
+                visibility 0.25s;
+    z-index: 60;
+  }
+  .fg-login-dropdown-menu.open {
+    opacity: 1; visibility: visible;
+    transform: translateY(0) scale(1);
+  }
+  .fg-login-dropdown-item {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 14px 20px;
+    background: transparent; border: none; cursor: pointer;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; letter-spacing: 0.18em; font-weight: 700;
+    text-transform: uppercase;
+    color: rgba(196,199,197,1);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .fg-login-dropdown-item:last-child { border-bottom: none; }
+  .fg-login-dropdown-item:hover { background: rgba(0,210,255,0.08); color: #00d2ff; }
+  .fg-login-dropdown-item .material-symbols-outlined { font-size: 18px; color: #00d2ff; }
+
+  /* ── Dedicated full-screen login views ── */
+  .fg-login-screen {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column;
+    background-color: rgba(19,19,20,0.92);
+    animation: fade-in-up 0.5s cubic-bezier(0.4,0,0.2,1) forwards;
+  }
+  .fg-login-screen-header {
+    position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 80px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    background: rgba(19,19,20,0.90);
+    backdrop-filter: blur(24px);
+  }
+  .fg-login-screen-back {
+    display: flex; align-items: center; gap: 8px;
+    background: transparent; border: 1px solid rgba(255,255,255,0.10);
+    color: rgba(196,199,197,1);
+    padding: 10px 20px; border-radius: 9999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+    cursor: pointer; transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .fg-login-screen-back:hover { border-color: #00d2ff; color: #00d2ff; }
+  .fg-login-screen-back .material-symbols-outlined { font-size: 18px; }
+
+  .fg-login-screen-body {
+    position: relative; z-index: 10;
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 3rem 1.5rem;
+  }
+  .fg-login-screen-body .fg-login-grid {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+    width: 100%;
+  }
+
   .fg-main {
     padding-top: 8rem; padding-bottom: 5rem;
     padding-left: 1rem; padding-right: 1rem;
@@ -324,7 +416,6 @@ const STYLES = `
   }
   .fg-feat-icon { font-size: 30px !important; }
 
-  .fg-login-section { display: flex; flex-direction: column; gap: 3rem; }
   .fg-login-heading { text-align: center; display: flex; flex-direction: column; gap: 0.75rem; }
   .fg-login-heading h2 {
     font-family: 'Inter', sans-serif;
@@ -523,16 +614,6 @@ const STYLES = `
   }
 `;
 
-/* ── DAF fallback OTP codes (mirrors DAFApp.jsx TEAM_FALLBACK_CODES) ── */
-const DAF_FALLBACK_CODES = {
-  ALPHA:   '4821',
-  BETA:    '9281',
-  CHARLIE: '6512',
-  DELTA:   '1104',
-};
-
-const DAF_TEAMS = ['ALPHA', 'BETA', 'CHARLIE', 'DELTA'];
-
 /* ── Role config for success modal ── */
 const ROLE_CONFIG = {
   admin:    { label: 'COMMAND ADMIN',   body: 'Full system override access initializing.' },
@@ -540,44 +621,132 @@ const ROLE_CONFIG = {
   tactical: { label: 'DAF TACTICAL',    body: 'Secure uplink to responder network establishing.' },
 };
 
+/* ── LoginCard configs, keyed by role ── */
+const LOGIN_CARD_CONFIGS = {
+  admin: {
+    icon: 'admin_panel_settings',
+    iconColor: '#00d2ff',
+    title: 'Command Admin',
+    desc: 'Full system override and global logistics control.',
+    userPlaceholder: 'USER ID',
+    passPlaceholder: 'PASSWORD',
+    btnLabel: 'Authorize Admin',
+    cardClass: 'admin',
+    barClass: 'admin',
+    btnClass: 'admin',
+  },
+  guest: {
+    icon: 'meeting_room',
+    iconColor: '#00d2ff',
+    title: 'Hotel Guest',
+    desc: 'Safety guidance and personal evacuation assist.',
+    userPlaceholder: 'FIRST NAME',        // matches old portal label
+    passPlaceholder: 'PASSCODE (First 3 letters + Room #)',  // matches old portal hint
+    btnLabel: 'Enter Safety Hub',
+    cardClass: 'guest',
+    barClass: 'guest',
+    btnClass: 'guest',
+  },
+  tactical: {
+    icon: 'local_fire_department',
+    iconColor: '#00d2ff',
+    title: 'DAF Tactical',
+    desc: 'Access the DAF responder network.',
+    btnLabel: 'Access DAF Portal',
+    cardClass: 'tactical',
+    barClass: 'tactical',
+    btnClass: 'tactical',
+    // No fields — clicking the button navigates directly (mirrors old portal)
+    noFields: true,
+  },
+};
+
+/* ── Items shown inside the LOGIN dropdown ── */
+const LOGIN_MENU_ITEMS = [
+  { role: 'admin',    label: 'Login as Admin',    icon: 'admin_panel_settings' },
+  { role: 'guest',    label: 'Login as Guest',    icon: 'meeting_room' },
+  { role: 'tactical', label: 'Login as DAF Team', icon: 'local_fire_department' },
+];
+
 /* ─────────────────────────────────────────────────────────────────────────
-   validateCredentials
-   Returns null on success, or { error: string } on failure.
-   This is the single source of truth for auth logic.
+   authenticateRole
+   Mirrors ALL auth logic from the old LoginPortal.jsx exactly.
+   Returns:
+     { success: true }                         — proceed to success modal
+     { success: false, error: string }         — show inline error
+     { success: false, redirect: string }      — hard-navigate immediately (DAF)
 ───────────────────────────────────────────────────────────────────────── */
-function validateCredentials(role, { user = '', pass = '' }) {
+async function authenticateRole(role, { user = '', pass = '' }) {
+  /* ── Admin: hardcoded credentials (from old portal) ── */
   if (role === 'admin') {
-    // Admin: require both fields non-empty (demo — swap for real API call)
-    if (!user.trim()) return { error: 'User ID is required.' };
-    if (!pass.trim()) return { error: 'Password is required.' };
-    return null;
+    if (!user.trim()) return { success: false, error: 'User ID is required.' };
+    if (!pass.trim()) return { success: false, error: 'Password is required.' };
+
+    if (user === 'admin' && pass === 'admin123') {
+      return { success: true };
+    }
+    return { success: false, error: 'Invalid Administrative Credentials.' };
   }
 
+  /* ── Guest: FastAPI + SQLAlchemy (from old portal) ── */
   if (role === 'guest') {
-    if (!user.trim()) return { error: 'Room / User ID is required.' };
-    if (!pass.trim()) return { error: 'Password is required.' };
-    return null;
+    if (!user.trim()) return { success: false, error: 'First Name is required.' };
+    if (!pass.trim()) return { success: false, error: 'Passcode is required.' };
+
+    try {
+      const response = await fetch('/api/v1/auth/guest-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          login_id: user.trim(),
+          password:  pass.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        /* Normalize profile — store both snake_case and camelCase keys
+           so GuestApp.jsx and guest.html both find what they need. */
+        const raw = data.guest || data;
+        const normalizedProfile = {
+          name:           raw.name          || raw.full_name  || '',
+          full_name:      raw.full_name     || raw.name       || '',
+          room:           String(raw.room   || raw.roomId     || raw.room_assignment || ''),
+          roomId:         String(raw.room   || raw.roomId     || raw.room_assignment || ''),
+          room_id:        String(raw.room   || raw.roomId     || raw.room_assignment || ''),
+          checkOutDate:   raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+          check_out_date: raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+          check_out:      raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+          nights:         raw.nights        ?? null,
+          id:             raw.id,
+        };
+        sessionStorage.setItem('guestProfile', JSON.stringify(normalizedProfile));
+
+        if (data.token || data.access_token) {
+          sessionStorage.setItem('guestToken', data.token || data.access_token);
+        }
+
+        /* Signal caller to navigate to /guest.html after modal */
+        return { success: true, redirect: '/guest.html' };
+      }
+
+      return {
+        success: false,
+        error: data.message || 'Authentication failed. Verify your name and room configurations.',
+      };
+    } catch (err) {
+      console.error('FastAPI Connection Timeout:', err);
+      return { success: false, error: 'Unable to reach the centralized verification matrix.' };
+    }
   }
 
+  /* ── DAF Tactical: direct navigation, no form (from old portal) ── */
   if (role === 'tactical') {
-    const otp = user.trim();
-    if (!otp) return { error: 'Tactical OTP is required.' };
-
-    // Check localStorage-stored codes first (set by admin panel)
-    const matchedStored = DAF_TEAMS.find(t => {
-      const stored = localStorage.getItem(`daf_otp_${t.toLowerCase()}`);
-      return stored && stored === otp;
-    });
-    if (matchedStored) return null;
-
-    // Fall back to hardcoded codes
-    const matchedFallback = DAF_TEAMS.find(t => DAF_FALLBACK_CODES[t] === otp);
-    if (matchedFallback) return null;
-
-    return { error: 'INVALID AUTHORIZATION CODE' };
+    return { success: false, redirect: '/daf.html' };
   }
 
-  return null;
+  return { success: false, error: 'Unknown role.' };
 }
 
 /* ── Particle Canvas ─────────────────────────────────────────────────── */
@@ -702,10 +871,12 @@ function SuccessModal({ role, onClose, onProceed }) {
 
 /* ─────────────────────────────────────────────────────────────────────────
    LoginCard
-   ─ onLogin(role, credentials) → null | { error: string }
-     The parent validates and returns an error string or null.
-     If null  → pendingRole is set → success modal opens → proceed navigates.
-     If error → serverError is shown inline; modal never opens.
+   Handles its own loading / error state.
+   Calls onLogin(role, { user, pass }) → Promise<{ success, error?, redirect? }>
+   • success + no redirect  → parent opens success modal (admin)
+   • success + redirect     → parent stores redirect then opens modal (guest)
+   • !success + redirect    → parent navigates immediately (DAF)
+   • !success + error       → shown inline, modal never opens
 ───────────────────────────────────────────────────────────────────────── */
 function LoginCard({
   role, icon, iconClass, iconColor,
@@ -713,35 +884,33 @@ function LoginCard({
   btnLabel, cardClass, barClass, btnClass,
   transitionDelay,
   onLogin,
-  singleField = false,
+  noFields = false,   // DAF card: button only, no inputs
 }) {
   const [user, setUser]               = useState('');
   const [pass, setPass]               = useState('');
   const [userErr, setUserErr]         = useState(false);
   const [passErr, setPassErr]         = useState(false);
   const [loading, setLoading]         = useState(false);
-  const [serverError, setServerError] = useState(''); // ← auth / OTP error
+  const [serverError, setServerError] = useState('');
 
   const validate = useCallback(() => {
+    if (noFields) return true;
     let ok = true;
     if (!user.trim()) { setUserErr(true); ok = false; }
-    if (!singleField && !pass.trim()) { setPassErr(true); ok = false; }
+    if (passPlaceholder && !pass.trim()) { setPassErr(true); ok = false; }
     return ok;
-  }, [user, pass, singleField]);
+  }, [user, pass, noFields, passPlaceholder]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!validate()) return;
     setServerError('');
     setLoading(true);
-    setTimeout(() => {
-      // onLogin returns null on success or { error } on failure
-      const result = onLogin(role, { user, pass });
-      setLoading(false);
-      if (result?.error) {
-        setServerError(result.error);
-      }
-      // If result is null the parent already set pendingRole → modal opens
-    }, 1400);
+    const result = await onLogin(role, { user, pass });
+    setLoading(false);
+    if (!result.success && result.error) {
+      setServerError(result.error);
+    }
+    // Navigation / modal handled by parent via onLogin
   }, [validate, onLogin, role, user, pass]);
 
   const handleKey = useCallback((e) => {
@@ -755,6 +924,7 @@ function LoginCard({
     >
       <div className={`fg-login-bar ${barClass}`} />
       <div className="fg-login-body">
+
         {/* Top */}
         <div className="fg-login-card-top">
           <span
@@ -770,39 +940,43 @@ function LoginCard({
         {/* Fields */}
         <div className="fg-login-fields">
 
-          <div className="fg-login-field">
-            <input
-              className={`fg-input input-dark${userErr ? ' error' : ''}`}
-              placeholder={userPlaceholder}
-              type="text"
-              value={user}
-              style={userErr ? { borderColor: '#ffb4ab' } : {}}
-              onChange={e => { setUser(e.target.value); setUserErr(false); setServerError(''); }}
-              onKeyDown={handleKey}
-            />
-            <p className={`field-error${userErr ? ' show' : ''}`}>
-              {userPlaceholder} is required.
-            </p>
-          </div>
+          {!noFields && (
+            <>
+              <div className="fg-login-field">
+                <input
+                  className={`fg-input input-dark${userErr ? ' error' : ''}`}
+                  placeholder={userPlaceholder}
+                  type="text"
+                  value={user}
+                  style={userErr ? { borderColor: '#ffb4ab' } : {}}
+                  onChange={e => { setUser(e.target.value); setUserErr(false); setServerError(''); }}
+                  onKeyDown={handleKey}
+                />
+                <p className={`field-error${userErr ? ' show' : ''}`}>
+                  {userPlaceholder} is required.
+                </p>
+              </div>
 
-          {!singleField && (
-            <div className="fg-login-field">
-              <input
-                className={`fg-input input-dark${passErr ? ' error' : ''}`}
-                placeholder={passPlaceholder}
-                type="password"
-                value={pass}
-                style={passErr ? { borderColor: '#ffb4ab' } : {}}
-                onChange={e => { setPass(e.target.value); setPassErr(false); setServerError(''); }}
-                onKeyDown={handleKey}
-              />
-              <p className={`field-error${passErr ? ' show' : ''}`}>
-                Password is required.
-              </p>
-            </div>
+              {passPlaceholder && (
+                <div className="fg-login-field">
+                  <input
+                    className={`fg-input input-dark${passErr ? ' error' : ''}`}
+                    placeholder={passPlaceholder}
+                    type="password"
+                    value={pass}
+                    style={passErr ? { borderColor: '#ffb4ab' } : {}}
+                    onChange={e => { setPass(e.target.value); setPassErr(false); setServerError(''); }}
+                    onKeyDown={handleKey}
+                  />
+                  <p className={`field-error${passErr ? ' show' : ''}`}>
+                    Password is required.
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
-          {/* ── Server / OTP error ── */}
+          {/* ── Server / auth error ── */}
           {serverError && (
             <p className="fg-server-error">
               <span>⚠</span> {serverError}
@@ -831,11 +1005,45 @@ function LoginCard({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   LoginScreen — full-screen dedicated view for a single role
+───────────────────────────────────────────────────────────────────────── */
+function LoginScreen({ role, onBack, onLogin }) {
+  const cfg = LOGIN_CARD_CONFIGS[role];
+  if (!cfg) return null;
+
+  return (
+    <div className="fg-login-screen hero-gradient">
+      <div className="fg-login-screen-header">
+        <div className="fg-header-left">
+          <span className="fg-logo-word">FIREGUARD</span>
+          <span className="fg-logo-sub">HMS</span>
+        </div>
+        <button className="fg-login-screen-back" onClick={onBack}>
+          <span className="material-symbols-outlined">arrow_back</span>
+          BACK TO DASHBOARD
+        </button>
+      </div>
+
+      <div className="fg-login-screen-body">
+        <div className="fg-login-grid">
+          <LoginCard role={role} {...cfg} onLogin={onLogin} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    LandingPage
 ───────────────────────────────────────────────────────────────────────── */
 export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, onDafAuthSuccess }) {
-  const [pendingRole, setPendingRole] = useState(null);
-  const [toast, setToast]             = useState({ visible: false, message: '', type: 'success' });
+  const [pendingRole, setPendingRole]             = useState(null);
+  const [pendingRedirect, setPendingRedirect]     = useState(null); // set for guest
+  const [toast, setToast]                         = useState({ visible: false, message: '', type: 'success' });
+  const [loginMenuOpen, setLoginMenuOpen]         = useState(false);
+  const [activeLoginScreen, setActiveLoginScreen] = useState(null);
+
+  const loginDropdownRef = useRef(null);
 
   useReveal();
 
@@ -844,41 +1052,108 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
     setTimeout(() => setToast(t => ({ ...t, visible: false })), 3500);
   }, []);
 
+  /* Close LOGIN dropdown when clicking outside */
+  useEffect(() => {
+    if (!loginMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (loginDropdownRef.current && !loginDropdownRef.current.contains(e.target)) {
+        setLoginMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [loginMenuOpen]);
+
+  const handleSelectLoginRole = useCallback((role) => {
+    setLoginMenuOpen(false);
+    setActiveLoginScreen(role);
+  }, []);
+
+  const handleBackFromLoginScreen = useCallback(() => {
+    setActiveLoginScreen(null);
+  }, []);
+
   /* ─────────────────────────────────────────────────────────────────────
      handleLogin — called by LoginCard with (role, { user, pass })
-     Returns null on success (opens modal) or { error } (shown inline).
+     Runs authenticateRole() and routes the result:
+       • DAF redirect  → navigate immediately, no modal
+       • Guest success → store redirect target, open success modal
+       • Admin success → open success modal (onAdminAuthSuccess called on Proceed)
+       • Failure       → return { error } so LoginCard shows it inline
   ───────────────────────────────────────────────────────────────────── */
-  const handleLogin = useCallback((role, credentials = {}) => {
-    const validationError = validateCredentials(role, credentials);
-    if (validationError) return validationError; // card renders this inline
-    setPendingRole(role);                         // opens success modal
-    return null;
+  const handleLogin = useCallback(async (role, credentials = {}) => {
+    const result = await authenticateRole(role, credentials);
+
+    /* DAF: hard-navigate right away (mirrors old portal handleDafDirectNavigation) */
+    if (!result.success && result.redirect) {
+      window.location.href = result.redirect;
+      return { success: false }; // card stays disabled while navigating
+    }
+
+    /* Failure with inline error */
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    /* Success: store any redirect URL, then open the success modal */
+    if (result.redirect) {
+      setPendingRedirect(result.redirect);
+    }
+    setPendingRole(role);
+    return { success: true };
   }, []);
 
   const handleModalClose = useCallback(() => {
     setPendingRole(null);
+    setPendingRedirect(null);
   }, []);
 
   /* ─────────────────────────────────────────────────────────────────────
      handleProceed — user clicked "Proceed" in the success modal
-     This is where actual navigation happens.
+     Mirrors the navigation decisions from the old LoginPortal exactly:
+       admin  → onAdminAuthSuccess()  (React navigation)
+       guest  → window.location.href = '/guest.html'
+       (DAF already navigated before the modal opens)
   ───────────────────────────────────────────────────────────────────── */
   const handleProceed = useCallback(() => {
-    const role = pendingRole;
+    const role     = pendingRole;
+    const redirect = pendingRedirect;
+
     setPendingRole(null);
+    setPendingRedirect(null);
+    setActiveLoginScreen(null);
+
     showToast('SESSION ACTIVE — ENVIRONMENT LOADING', 'success');
+
     setTimeout(() => {
-      if (role === 'admin')         onAdminAuthSuccess?.();
-      else if (role === 'guest')    onGuestAuthSuccess?.();
-      else if (role === 'tactical') onDafAuthSuccess?.();
+      if (redirect) {
+        /* Guest: hard-navigate so the server-rendered page loads fresh */
+        window.location.href = redirect;
+      } else if (role === 'admin') {
+        onAdminAuthSuccess?.();
+      } else if (role === 'guest') {
+        /* Fallback if redirect was somehow not set */
+        onGuestAuthSuccess?.();
+      } else if (role === 'tactical') {
+        onDafAuthSuccess?.();
+      }
     }, 600);
-  }, [pendingRole, onAdminAuthSuccess, onGuestAuthSuccess, onDafAuthSuccess, showToast]);
+  }, [pendingRole, pendingRedirect, onAdminAuthSuccess, onGuestAuthSuccess, onDafAuthSuccess, showToast]);
 
   return (
     <div className="fg-root">
       <style>{STYLES}</style>
 
       <ParticleCanvas />
+
+      {/* ══ DEDICATED LOGIN SCREEN ══════════════════════════════════════ */}
+      {activeLoginScreen && (
+        <LoginScreen
+          role={activeLoginScreen}
+          onBack={handleBackFromLoginScreen}
+          onLogin={handleLogin}
+        />
+      )}
 
       {/* ══ HEADER ══════════════════════════════════════════════════════ */}
       <header className="fg-header">
@@ -890,7 +1165,32 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
           <nav className="fg-nav">
             <a className="fg-nav-link active" href="#">DASHBOARD</a>
             <a className="fg-nav-link" href="#">SYSTEM MAP</a>
-            <a className="fg-nav-link" href="#">RESPONSE LOGS</a>
+
+            {/* ── LOGIN dropdown ── */}
+            <div className="fg-login-dropdown" ref={loginDropdownRef}>
+              <button
+                className={`fg-login-dropdown-btn${loginMenuOpen ? ' open' : ''}`}
+                onClick={() => setLoginMenuOpen(o => !o)}
+                aria-haspopup="true"
+                aria-expanded={loginMenuOpen}
+              >
+                LOGIN
+                <span className="material-symbols-outlined">expand_more</span>
+              </button>
+
+              <div className={`fg-login-dropdown-menu${loginMenuOpen ? ' open' : ''}`}>
+                {LOGIN_MENU_ITEMS.map(item => (
+                  <button
+                    key={item.role}
+                    className="fg-login-dropdown-item"
+                    onClick={() => handleSelectLoginRole(item.role)}
+                  >
+                    <span className="material-symbols-outlined">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </nav>
           <div className="fg-status-pill glow-accent">
             <div className="fg-status-dot" />
@@ -999,67 +1299,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
           </div>
         </section>
 
-        {/* ── Login Section ── */}
-        <section className="fg-login-section">
-          <div className="fg-login-heading reveal visible">
-            <h2>Secure Portal Access</h2>
-            <p>Select your operational clearance to begin session.</p>
-          </div>
-
-          <div className="fg-login-grid">
-
-            {/* ── Admin ── */}
-            <LoginCard
-              role="admin"
-              icon="admin_panel_settings"
-              iconColor="#00d2ff"
-              title="Command Admin"
-              desc="Full system override and global logistics control."
-              userPlaceholder="USER ID"
-              passPlaceholder="PASSWORD"
-              btnLabel="Authorize Admin"
-              cardClass="admin"
-              barClass="admin"
-              btnClass="admin"
-              onLogin={handleLogin}
-            />
-
-            {/* ── Guest ── */}
-            <LoginCard
-              role="guest"
-              icon="meeting_room"
-              iconColor="#00d2ff"
-              title="Hotel Guest"
-              desc="Safety guidance and personal evacuation assist."
-              userPlaceholder="ROOM / USER ID"
-              passPlaceholder="PASSWORD"
-              btnLabel="Enter Safety Hub"
-              cardClass="guest"
-              barClass="guest"
-              btnClass="guest"
-              transitionDelay="100ms"
-              onLogin={handleLogin}
-            />
-
-            {/* ── DAF Tactical — OTP only, no password field ── */}
-            <LoginCard
-              role="tactical"
-              icon="local_fire_department"
-              iconColor="#00d2ff"
-              title="DAF Tactical"
-              desc="Enter Tactical OTP to access responder network."
-              userPlaceholder="TACTICAL OTP"
-              btnLabel="Verify OTP"
-              cardClass="tactical"
-              barClass="tactical"
-              btnClass="tactical"
-              transitionDelay="200ms"
-              onLogin={handleLogin}
-              singleField              /* ← OTP only; no password field rendered */
-            />
-
-          </div>
-        </section>
       </main>
 
       {/* ══ FOOTER ══════════════════════════════════════════════════════ */}

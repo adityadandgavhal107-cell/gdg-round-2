@@ -8,6 +8,35 @@ const NEEDS_LABELS = {
   elderly: '👴 Elderly', children: '🧒 Children', medical: '🏥 Medical',
 };
 
+// ─── Checkout filter helper ────────────────────────────────────────────────
+// Returns true if the guest should still be visible on the dashboard.
+// A guest is hidden when:
+//   - their checkOutDate equals today's date AND the current time is 11:00 AM or later
+//   - their checkOutDate is strictly in the past (any time)
+function isGuestStillActive(guest) {
+  const checkOutDate = guest.checkOutDate; // expected format: "YYYY-MM-DD"
+  if (!checkOutDate) return true; // no date set → always show
+
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+  // Parse checkout as a plain date (no timezone shift)
+  const [coYear, coMonth, coDay] = checkOutDate.split('-').map(Number);
+  const checkoutDateOnly = new Date(coYear, coMonth - 1, coDay); // local midnight
+  const todayDateOnly    = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // local midnight
+
+  // Past checkout date → always hidden
+  if (checkoutDateOnly < todayDateOnly) return false;
+
+  // Checkout is today → hide at or after 11:00 AM
+  if (checkoutDateOnly.getTime() === todayDateOnly.getTime()) {
+    const hour = now.getHours(); // 0-23, local time
+    if (hour >= 11) return false;
+  }
+
+  return true;
+}
+
 export default function GuestDashboard({ onHighlightRoom }) {
   const [guests, setGuests] = useState([]);
   const [search, setSearch] = useState('');
@@ -16,7 +45,15 @@ export default function GuestDashboard({ onHighlightRoom }) {
   const [showForm, setShowForm] = useState(false);
   const [roomStatuses, setRoomStatuses] = useState({});
 
-  const today = new Date().toISOString().split('T')[0];
+  // ── Re-evaluate checkout filter every minute so the hide kicks in
+  //    automatically at 11:00 AM without a page refresh.
+  const [_tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const today    = new Date().toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
   const [form, setForm] = useState({
@@ -24,7 +61,6 @@ export default function GuestDashboard({ onHighlightRoom }) {
     checkInDate: today, checkOutDate: tomorrow,
   });
 
-  // In production this is set to the deployed FastAPI Render URL via VITE_API_URL
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
   useEffect(() => {
@@ -115,7 +151,7 @@ export default function GuestDashboard({ onHighlightRoom }) {
         nights: savedGuest.nights,
       };
       setGuests(prev => [...prev, UI_NewGuest]);
-      const resetToday = new Date().toISOString().split('T')[0];
+      const resetToday    = new Date().toISOString().split('T')[0];
       const resetTomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
       setForm({ name: '', age: '', roomId: '', contact: '', specialNeeds: [], checkInDate: resetToday, checkOutDate: resetTomorrow });
       setShowForm(false);
@@ -152,17 +188,26 @@ export default function GuestDashboard({ onHighlightRoom }) {
     }
   }
 
-  const filtered = guests.filter(g => {
-    const matchSearch = g.name.toLowerCase().includes(search.toLowerCase()) || g.roomId.includes(search);
-    const matchFloor = filterFloor === 'all' || g.roomId[0] === filterFloor;
-    const matchStatus = filterStatus === 'all'
-      || (filterStatus === 'alert' && roomStatuses[g.roomId] === 'fire')
+  // ── Active guests: apply checkout date filter FIRST, then search/floor/status ──
+  const activeGuests = guests.filter(isGuestStillActive);
+
+  const filtered = activeGuests.filter(g => {
+    const matchSearch  = g.name.toLowerCase().includes(search.toLowerCase()) || g.roomId.includes(search);
+    const matchFloor   = filterFloor === 'all' || g.roomId[0] === filterFloor;
+    const matchStatus  = filterStatus === 'all'
+      || (filterStatus === 'alert'     && roomStatuses[g.roomId] === 'fire')
       || (filterStatus === 'evacuated' && g.evacuated)
-      || (filterStatus === 'safe' && !g.evacuated && roomStatuses[g.roomId] !== 'fire');
+      || (filterStatus === 'safe'      && !g.evacuated && roomStatuses[g.roomId] !== 'fire');
     return matchSearch && matchFloor && matchStatus;
   });
 
-  const alertedGuests = guests.filter(g => roomStatuses[g.roomId] === 'fire' || roomStatuses[g.roomId] === 'smoke');
+  // Alert summary uses activeGuests too (no point alerting a checked-out guest)
+  const alertedGuests = activeGuests.filter(g =>
+    roomStatuses[g.roomId] === 'fire' || roomStatuses[g.roomId] === 'smoke'
+  );
+
+  // How many guests are hidden today due to checkout
+  const hiddenToday = guests.length - activeGuests.length;
 
   return (
     <div className="guest-view">
@@ -171,7 +216,16 @@ export default function GuestDashboard({ onHighlightRoom }) {
         <div>
           <h2 className="view-title">👥 <span>Guest</span> Management</h2>
           <p style={{ color: 'var(--text-dim)', fontSize: 12, marginTop: 2 }}>
-            {guests.length} guests · {alertedGuests.length} in affected zones · {guests.filter(g => g.evacuated).length} evacuated
+            {activeGuests.length} guests · {alertedGuests.length} in affected zones · {activeGuests.filter(g => g.evacuated).length} evacuated
+            {hiddenToday > 0 && (
+              <span style={{
+                marginLeft: 10,
+                color: 'rgba(148,163,184,0.5)',
+                fontSize: 11,
+              }}>
+                · {hiddenToday} checked out today
+              </span>
+            )}
           </p>
         </div>
         <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
@@ -358,6 +412,12 @@ export default function GuestDashboard({ onHighlightRoom }) {
             {filtered.map(g => {
               const zoneStatus = g.evacuated ? 'evacuated' : (roomStatuses[g.roomId] || 'safe');
 
+              // ── Checkout-today warning: highlight guests checking out today ──
+              const now = new Date();
+              const todayStr = now.toISOString().split('T')[0];
+              const isCheckoutToday = g.checkOutDate === todayStr;
+              const isCheckoutSoon  = isCheckoutToday && now.getHours() < 11; // before 11am hide time
+
               const getPriorityStyles = (priorityStr) => {
                 const normalized = String(priorityStr).toLowerCase();
                 if (normalized.includes('p1') || normalized.includes('critical')) {
@@ -375,9 +435,29 @@ export default function GuestDashboard({ onHighlightRoom }) {
               const badgeStyle = getPriorityStyles(g.priority);
 
               return (
-                <tr key={g.id} onClick={() => onHighlightRoom?.(g.roomId)}>
+                <tr
+                  key={g.id}
+                  onClick={() => onHighlightRoom?.(g.roomId)}
+                  style={isCheckoutSoon ? { opacity: 0.7, borderLeft: '2px solid rgba(251,191,36,0.5)' } : {}}
+                >
                   <td>
-                    <div style={{ fontWeight: 600 }}>{g.name}</div>
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {g.name}
+                      {isCheckoutSoon && (
+                        <span style={{
+                          fontSize: 9,
+                          background: 'rgba(251,191,36,0.15)',
+                          border: '1px solid rgba(251,191,36,0.35)',
+                          color: '#fbbf24',
+                          padding: '1px 5px',
+                          borderRadius: 6,
+                          fontWeight: 700,
+                          letterSpacing: 0.5,
+                        }}>
+                          CHECKOUT TODAY
+                        </span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{g.contact}</div>
                   </td>
                   <td>
@@ -385,7 +465,9 @@ export default function GuestDashboard({ onHighlightRoom }) {
                   </td>
                   <td>
                     <div style={{ fontWeight: 600, fontSize: 12 }}>{g.nights ?? '—'}n</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{g.checkOutDate ?? ''}</div>
+                    <div style={{ fontSize: 10, color: isCheckoutSoon ? '#fbbf24' : 'var(--text-dim)' }}>
+                      {g.checkOutDate ?? ''}
+                    </div>
                   </td>
                   <td className="mono">{g.age}</td>
                   <td>
@@ -423,8 +505,8 @@ export default function GuestDashboard({ onHighlightRoom }) {
                         ? 'evacuated'
                         : 'safe'
                     }`}>
-                      {zoneStatus === 'fire' ? '🔥 FIRE'
-                        : zoneStatus === 'smoke' ? '💨 SMOKE'
+                      {zoneStatus === 'fire'      ? '🔥 FIRE'
+                        : zoneStatus === 'smoke'  ? '💨 SMOKE'
                         : zoneStatus === 'evacuated' ? '✅ Evacuated'
                         : '🛡 Safe'}
                     </span>
