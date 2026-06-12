@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import HotelView3D from './views/HotelView3D.jsx';
+import NavigationView from './views/NavigationView.jsx';
 import { hotelData, findEvacuationPath } from './data/hotel.js';
+import { pathToSteps, buildAudioScript, localiseStep } from './core/pathToSteps.js';
 import config from './core/config.js';
 import bus from './core/EventBus.js';
 import { useVoiceGuidance } from './voice-guidance/useVoiceGuidance';
+import VoiceGuidanceService from './voice-guidance/VoiceGuidanceService';
 
 export default function GuestApp() {
   const [roomId, setRoomId] = useState('');
@@ -18,6 +21,12 @@ export default function GuestApp() {
   const roomHazardsRef = useRef({});
   const [socketConnected, setSocketConnected] = useState(false);
   const [viewMode, setViewMode] = useState('map');
+
+  // ── Step-based POV navigation ──────────────────────────────────────────
+  const [navSteps,    setNavSteps]    = useState([]);   // high-level checkpoints
+  const [stepIndex,   setStepIndex]   = useState(0);    // current checkpoint
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [language, setLanguage]       = useState('en'); // 'en' | 'hi'
 
   // Refs so the single socket closure always reads latest values
   const roomIdRef       = useRef(roomId);
@@ -271,6 +280,10 @@ export default function GuestApp() {
     if (roomId) {
       const dynamicPath = findEvacuationPath(roomId, roomHazards);
       setPath(dynamicPath);
+      // Rebuild checkpoint steps whenever path changes
+      const steps = pathToSteps(dynamicPath);
+      setNavSteps(steps);
+      setStepIndex(0);
     }
 
     const fireRooms = Object.keys(roomHazards).filter(
@@ -293,12 +306,49 @@ export default function GuestApp() {
     if (!hotelData.graph[roomId]) { alert('Invalid room ID'); return; }
     const safePath = findEvacuationPath(roomId, roomHazards);
     setPath(safePath);
+    const steps = pathToSteps(safePath);
+    setNavSteps(steps);
+    setStepIndex(0);
     if (safePath.length > 0) {
-      // speakRoute converts the path array into natural instructions and
-      // enqueues them sequentially. The routing algorithm is untouched.
-      speakRoute(safePath, { isEvacuation: true });
+      // Build a generalized audio script (corridor + staircase direction)
+      // instead of room-by-room instructions.
+      const script = buildAudioScript(safePath, guestProfile?.name, language);
+      speakAlert(script);
     }
   };
+
+  // ── Next step button ───────────────────────────────────────────────────
+  const handleNextStep = () => {
+    setStepIndex(prev => Math.min(prev + 1, navSteps.length - 1));
+  };
+
+  // ── Speak current step ────────────────────────────────────────────────
+  const handleSpeakPressed = () => {
+    const step = navSteps[stepIndex];
+    if (step) {
+      const localStep = localiseStep(step, language);
+      speakAlert(localStep.instruction);
+      setVoiceActive(true);
+      setTimeout(() => setVoiceActive(false), 4000);
+    } else {
+      speakAlert(buildAudioScript(path, guestProfile?.name, language));
+    }
+  };
+
+  // ── Language toggle ───────────────────────────────────────────────────────
+  const handleLanguageToggle = useCallback(() => {
+    setLanguage(prev => {
+      const next = prev === 'en' ? 'hi' : 'en';
+      VoiceGuidanceService.setLanguage(next);
+      // Speak a brief confirmation in the new language
+      VoiceGuidanceService.speak(
+        next === 'hi'
+          ? 'भाषा हिंदी में बदल दी गई है।'
+          : 'Language switched to English.'
+      );
+      return next;
+    });
+  }, []);
 
   const blockedRoomsList = Object.keys(roomHazards).filter(
     id => roomHazards[id].type === 'fire' || roomHazards[id].type === 'buffer'
@@ -497,6 +547,7 @@ export default function GuestApp() {
       }}>
 
         {/* Status badges — float top-right over the 3D map, no layout cost */}
+        {viewMode !== 'pov' && (
         <div style={{
           position: 'absolute',
           top: '10px',
@@ -534,15 +585,31 @@ export default function GuestApp() {
             {socketConnected ? 'TELEMETRY SYNCED' : 'RECONNECTING HUB'}
           </span>
         </div>
+        )}
 
-        <HotelView3D
-          evacuationPath={path}
-          viewMode={viewMode}
-          focusRoomId={roomId}
-          isGuest={true}
-          alertRooms={alertRooms}
-          roomStatuses={derivedRoomStatuses}
-        />
+        {viewMode === 'pov' && path.length > 0 ? (
+          <NavigationView
+            currentStep={localiseStep(navSteps[stepIndex] || null, language)}
+            totalSteps={navSteps.length}
+            stepIndex={stepIndex}
+            onNext={handleNextStep}
+            onSpeakPressed={handleSpeakPressed}
+            voiceActive={voiceActive}
+            dangerRooms={alertRooms}
+            evacuationDone={stepIndex >= navSteps.length - 1 && navSteps.length > 0 && navSteps[navSteps.length - 1]?.label === 'EXIT'}
+            language={language}
+            onLanguageToggle={handleLanguageToggle}
+          />
+        ) : (
+          <HotelView3D
+            evacuationPath={path}
+            viewMode={viewMode}
+            focusRoomId={roomId}
+            isGuest={true}
+            alertRooms={alertRooms}
+            roomStatuses={derivedRoomStatuses}
+          />
+        )}
       </div>
 
     </div>

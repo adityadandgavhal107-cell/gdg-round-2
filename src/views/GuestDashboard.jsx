@@ -24,7 +24,8 @@ export default function GuestDashboard({ onHighlightRoom }) {
     checkInDate: today, checkOutDate: tomorrow,
   });
 
-  const API_BASE_URL = 'http://localhost:8000/api';
+  // In production this is set to the deployed FastAPI Render URL via VITE_API_URL
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
   useEffect(() => {
     fetchGuests();

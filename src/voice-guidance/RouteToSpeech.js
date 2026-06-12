@@ -49,23 +49,17 @@ const isRoom = (node) => /^\d+$/.test(node);
 function buildRoomInstruction(rooms, isFirst) {
   if (rooms.length === 0) return null;
 
-  // When isFirst, the first room is where the guest already is — skip it.
-  const passRooms = isFirst ? rooms.slice(1) : rooms;
+  // Derive floor from the first room in the run
+  const firstRoom = rooms[0];
+  const floor = firstRoom ? parseInt(String(firstRoom).slice(0, -2), 10) : null;
+  const floorLabel = floor ? `Floor ${floor}` : 'your floor';
 
-  if (passRooms.length === 0) {
-    return "Please step out of your room and proceed into the corridor.";
+  if (isFirst && rooms.length === 1) {
+    return `Please exit your room and proceed through the corridor of ${floorLabel} toward the staircase.`;
   }
 
-  if (passRooms.length === 1) {
-    return `Please proceed forward, passing room ${passRooms[0]}.`;
-  }
-
-  // Two or more: "passing rooms 204 and 205" / "passing rooms 204, 205 and 206"
-  const last    = passRooms[passRooms.length - 1];
-  const leading = passRooms.slice(0, -1);
-  const list    = leading.join(', ') + ' and ' + last;
-
-  return `Please continue straight ahead, passing rooms ${list}.`;
+  // Generalised: do NOT enumerate room numbers; just describe corridor movement
+  return `Run through the corridor of ${floorLabel} toward the staircase.`;
 }
 
 /** Normalise a node string for matching. */
@@ -80,19 +74,19 @@ function matchesAny(node, ...patterns) {
 // ─── Node classifiers ─────────────────────────────────────────────────────────
 
 const classifiers = {
-  isRoom:             (n) => isRoom(n),
-  isLeftStaircase:    (n) => matchesAny(n, 'LEFT_STAIRCASE', 'LEFT_STAIR'),
-  isRightStaircase:   (n) => matchesAny(n, 'RIGHT_STAIRCASE', 'RIGHT_STAIR'),
-  isStaircase:        (n) => matchesAny(n, 'STAIRCASE', 'STAIR') && !matchesAny(n, 'LEFT', 'RIGHT'),
-  isLeftElevator:     (n) => matchesAny(n, 'LEFT_ELEVATOR', 'ELEVATOR_LEFT'),
-  isRightElevator:    (n) => matchesAny(n, 'RIGHT_ELEVATOR', 'ELEVATOR_RIGHT'),
-  isElevator:         (n) => matchesAny(n, 'ELEVATOR') && !matchesAny(n, 'LEFT', 'RIGHT'),
-  isLeftTurn:         (n) => matchesAny(n, 'LEFT_TURN', 'TURN_LEFT'),
-  isRightTurn:        (n) => matchesAny(n, 'RIGHT_TURN', 'TURN_RIGHT'),
-  isCorridor:         (n) => matchesAny(n, 'CORRIDOR', 'HALLWAY'),
-  isLobby:            (n) => matchesAny(n, 'LOBBY'),
-  isExit:             (n) => matchesAny(n, 'EXIT'),
-  isEmergencyExit:    (n) => matchesAny(n, 'EMERGENCY_EXIT', 'FIRE_EXIT'),
+  isRoom: (n) => isRoom(n),
+  isLeftStaircase: (n) => matchesAny(n, 'LEFT_STAIRCASE', 'LEFT_STAIR'),
+  isRightStaircase: (n) => matchesAny(n, 'RIGHT_STAIRCASE', 'RIGHT_STAIR'),
+  isStaircase: (n) => matchesAny(n, 'STAIRCASE', 'STAIR') && !matchesAny(n, 'LEFT', 'RIGHT'),
+  isLeftElevator: (n) => matchesAny(n, 'LEFT_ELEVATOR', 'ELEVATOR_LEFT'),
+  isRightElevator: (n) => matchesAny(n, 'RIGHT_ELEVATOR', 'ELEVATOR_RIGHT'),
+  isElevator: (n) => matchesAny(n, 'ELEVATOR') && !matchesAny(n, 'LEFT', 'RIGHT'),
+  isLeftTurn: (n) => matchesAny(n, 'LEFT_TURN', 'TURN_LEFT'),
+  isRightTurn: (n) => matchesAny(n, 'RIGHT_TURN', 'TURN_RIGHT'),
+  isCorridor: (n) => matchesAny(n, 'CORRIDOR', 'HALLWAY'),
+  isLobby: (n) => matchesAny(n, 'LOBBY'),
+  isExit: (n) => matchesAny(n, 'EXIT'),
+  isEmergencyExit: (n) => matchesAny(n, 'EMERGENCY_EXIT', 'FIRE_EXIT'),
 };
 
 // ─── Instruction templates ────────────────────────────────────────────────────
@@ -132,8 +126,8 @@ const instructionTemplates = [
     build: ({ nextNode }) => {
       const hasMoreAfter = nextNode && !classifiers.isExit(nextNode);
       return hasMoreAfter
-        ? "Turn left and take the staircase. Continue following the path on the next floor."
-        : "Turn left and take the staircase down to the ground floor.";
+        ? "Proceed through the corridor and use the West-side staircase. Continue following the path on the next floor."
+        : "Proceed through the corridor and take the West-side staircase down to the ground floor.";
     },
   },
 
@@ -143,8 +137,8 @@ const instructionTemplates = [
     build: ({ nextNode }) => {
       const hasMoreAfter = nextNode && !classifiers.isExit(nextNode);
       return hasMoreAfter
-        ? "Turn right and take the staircase. Continue following the path on the next floor."
-        : "Turn right and take the staircase down to the ground floor.";
+        ? "Proceed through the corridor and use the East-side staircase. Continue following the path on the next floor."
+        : "Proceed through the corridor and take the East-side staircase down to the ground floor.";
     },
   },
 
@@ -233,10 +227,10 @@ export function convertRouteToInstructions(path, options = {}) {
   let isFirstSegment = true;
 
   while (i < path.length) {
-    const node     = path[i];
+    const node = path[i];
     const prevNode = i > 0 ? path[i - 1] : null;
     const nextNode = i < path.length - 1 ? path[i + 1] : null;
-    const isLast   = i === path.length - 1;
+    const isLast = i === path.length - 1;
 
     // ── Room segment: collect consecutive room numbers then emit one instruction
     if (isRoom(node)) {

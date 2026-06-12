@@ -3,6 +3,7 @@ const NAV_ITEMS = [
   { id: 'cameras',   icon: '📹', label: 'Live Cameras' },
   { id: 'guests',    icon: '👥', label: 'Guest Management' },
   { id: 'daf',       icon: '🚒', label: 'DAF Teams' },
+  { id: 'sensors',   icon: '🔌', label: 'Sensor Control' },
 ];
 
 export default function Sidebar({ activeView, onNavigate, alertCounts }) {

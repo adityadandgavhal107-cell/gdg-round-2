@@ -182,3 +182,38 @@
     border-right-color: var(--border);
   }
 }
+/* Reset */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Allow normal page scrolling */
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100vh;
+  background: #131314;
+}
+
+/* Remove Vite starter constraints */
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Optional smooth scrolling */
+
+html {
+  scroll-behavior: smooth;
+}

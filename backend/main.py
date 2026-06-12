@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 import datetime
+import os
 
 import models
 from database import engine, get_db
@@ -13,10 +14,18 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FireGuard HMS Data Backend")
 
-# Enable Cross-Origin Resource Sharing (CORS) for your Vite Dev Server
+# CORS: allow the Vite dev server and the production Vercel frontend.
+# Set CORS_ORIGINS env var on Render to your Vercel URL (comma-separated, no trailing slash).
+# e.g. CORS_ORIGINS=https://fireguard.vercel.app,http://localhost:5173
+_raw_origins = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+)
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], # Vite default port
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

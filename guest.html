@@ -3,88 +3,203 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="theme-color" content="#080812" />
     <title>FireGuard Guest</title>
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-
+/* ─── RESET & BASE ──────────────────────────────────────────────────────── */
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Inter',sans-serif;}
+body{
 
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;font-family:'Inter',sans-serif;
+}
+
+/* ─── PHONE SHELL ───────────────────────────────────────────────────────── */
 .phone {
   width: 375px;
-  height: 720px;
-  background: #0d0d1a;
-  border-radius: 40px;
-  border: 2px solid rgba(255,255,255,0.08);
+  height: 740px;
+  /* CHANGED: Replaced the flat color with the matching light-to-dark gradient */
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.15) 0%, #080812 75%);
+  border-radius: 44px;
+  border: 1.5px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
   position: relative;
-  box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+  box-shadow:
+    0 60px 120px rgba(0,0,0,0.8),
+    0 0 0 1px rgba(255,255,255,0.03),
+    inset 0 1px 0 rgba(255,255,255,0.06);
   display: flex;
   flex-direction: column;
 }
 
-/* STATUS BAR */
-.statusbar{
-  padding:12px 24px 8px;
-  display:flex;align-items:center;justify-content:space-between;
-  background:#0d0d1a;
-  flex-shrink:0;
+/* ─── TOP SCREEN GLARE EFFECT ───────────────────────────────────────────── */
+.phone::before {
+  content: "";
+  position: absolute;
+  top: -15px; /* Positioned slightly above to slice the top edge of the gradient */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180px; /* Controls how wide the shade spreads */
+  height: 50px; /* Controls how far down the shade bleeds */
+  
+  /* Creates a soft elliptical white glow fading out to completely transparent */
+  background: radial-gradient(
+    ellipse at top, 
+    rgba(255, 255, 255, 0.12) 0%, 
+    rgba(255, 255, 255, 0.04) 40%, 
+    rgba(255, 255, 255, 0) 70%
+  );
+  
+  pointer-events: none; /* Ensures the glow doesn't block clicks/taps underneath */
+  z-index: 10; /* Keeps it on top of background panels, but behind status bar icons if desired */
 }
-.statusbar-left{display:flex;align-items:center;gap:8px;}
-.guest-icon{
-  width:32px;height:32px;border-radius:50%;
-  background:linear-gradient(135deg,#2563eb,#7c3aed);
-  display:flex;align-items:center;justify-content:center;
-  font-size:14px;
-}
-.statusbar-title{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;color:#fff;line-height:1.2;}
-.statusbar-right{display:flex;align-items:center;gap:6px;}
 
-/* INFO STRIP */
-.info-strip{
-  display:grid;grid-template-columns:1fr 1fr;
-  gap:8px;padding:4px 16px 8px;
-  flex-shrink:0;
-  transition: all 0.2s;
-}
-.info-pill{
-  background:rgba(255,255,255,0.05);
-  border:1px solid rgba(255,255,255,0.08);
-  border-radius:10px;padding:10px 14px;
-  display:flex;align-items:center;gap:8px;
-}
-.info-pill-icon{font-size:14px;opacity:0.7;}
-.info-pill-text{font-size:11px;font-weight:600;color:#a0aec0;letter-spacing:0.3px;}
-.info-pill-text span{color:#63b3ed;display:block;}
+/* ─── CONTAINER / CARD ──────────────────────────────────────────────────── */
+/* Wrap your component in a dark background container if needed, e.g., background: #0b0f19; */
 
-/* TILES */
-.tiles{
-  display:grid;grid-template-columns:1fr 1fr;
-  gap:8px;padding:0 16px 12px;
-  flex-shrink:0;
-  transition: all 0.2s;
+.statusbar {
+  padding: 20px 24px ;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #151b2c; /* Deep dark blue/grey container background */
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 24px;
+  flex-shrink: 0;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  margin-bottom: 16px;
 }
-.tile{
-  background:rgba(255,255,255,0.04);
-  border:1px solid rgba(255,255,255,0.07);
-  border-radius:10px;padding:12px 14px;
-}
-.tile-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#4a5568;font-weight:600;margin-bottom:6px;}
-.tile-value{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:#e2e8f0;}
 
-/* Hide strips & free up space when map tab is active */
-.map-active .info-strip,
-.map-active .tiles {
-  display: none;
+.guest-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  /* Smooth teal-to-purple gradient mimicking the image icon background */
+  background: linear-gradient(135deg, #67e8f9 0%, #3b82f6 50%, #8b5cf6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.map-active .main {
+
+/* Replace your inner icon with an user icon style if needed */
+.guest-avatar ::after {
+  content: "👤"; /* Fallback icon styling */
+  font-size: 20px;
+  opacity: 0.6;
+}
+
+.statusbar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   flex: 1;
 }
 
-/* MAIN CONTENT */
+.statusbar-room {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.live-badge {
+  background: rgba(45, 212, 191, 0.15); /* Soft teal transparent background */
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #2dd4bf; /* Teal live text */
+  font-family: 'Inter', sans-serif;
+  text-transform: uppercase;
+}
+
+/* Hidden live dot as it's not present inside the badge text in reference */
+.live-dot { display: none; }
+
+.statusbar-sub {
+  font-size: 13px;
+  color: #94a3b8; /* Muted gray-blue description text */
+  font-weight: 500;
+}
+
+/* Status indicator dot on the far right */
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #06b6d4; /* Vibrant teal indicator */
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.8);
+}
+
+/* ─── INFO TILES ROW ────────────────────────────────────────────────────── */
+.info-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px; /* Spaced out separate pill items instead of borders */
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.info-pill {
+  padding: 14px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #151b2c; /* Matches main card container background */
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 20px;
+}
+
+.info-pill:last-child { border-right: none; }
+
+.info-pill-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #64748b; /* Mid-tone gray labels */
+  font-weight: 700;
+  text-align: center;
+}
+
+.info-pill-value {
+  font-family: 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1;
+}
+
+/* Specific color highlights based on target fields */
+.info-pill-value.highlight {
+  color: #2dd4bf; /* Bright teal for CHECK-OUT date */
+}
+
+.info-pill-value.accent {
+  color: #38bdf8; /* Soft blue-teal for emergency/room values */
+}
+
+/* ─── SWIPE HINT ────────────────────────────────────────────────────────── */
+.swipe-hint{
+  text-align:center;padding:6px 0 4px;
+  font-size:9px;letter-spacing:1.5px;text-transform:uppercase;
+  color:#1e293b;font-weight:600;flex-shrink:0;
+}
+
+/* ─── MAIN CONTENT ──────────────────────────────────────────────────────── */
 .main{
   flex:1;
   padding:0 16px;
@@ -94,360 +209,507 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
   min-height:0;
 }
 
-/* SOS CARD */
-.sos-card{
-  border-radius:18px;padding:28px 20px 22px;
-  display:flex;flex-direction:column;align-items:center;
-  text-align:center;min-height:220px;justify-content:center;
-  position:relative;overflow:hidden;
-  transition:transform 0.1s;
+/* Hide tiles/strip when map is active */
+.map-active .info-strip,
+.map-active .swipe-hint{display:none;}
+.map-active .main{flex:1;}
+
+/* ─── PAGES ─────────────────────────────────────────────────────────────── */
+.page{display:none;flex:1;flex-direction:column;overflow-y:auto;min-height:0;}
+.page.active{display:flex;}
+.page::-webkit-scrollbar{width:0;}
+
+/* ─── SOS CARD ──────────────────────────────────────────────────────────── */
+#page-sos{padding-top:12px;gap:0;}
+
+.emergency-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(239,68,68,0.08);
+  border:1px solid rgba(239,68,68,0.2);
+  border-radius:20px;padding:4px 12px;
+  font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:#f87171;align-self:center;margin-bottom:16px;flex-shrink:0;
 }
-.sos-card.fire{background:linear-gradient(145deg,#5a0a0a,#8b1a1a,#c0392b);}
-.sos-card.health{background:linear-gradient(145deg,#0a2a5a,#1a4a8b,#2980b9);}
-.sos-card.security{background:linear-gradient(145deg,#2a0a5a,#4a1a8b,#7b3aed);}
+.emergency-badge-dot{
+  width:5px;height:5px;border-radius:50%;background:#ef4444;
+  animation:pulse-live 1.4s ease-in-out infinite;
+}
+
+.sos-card{
+  border-radius:24px;padding:32px 24px 28px;
+  display:flex;flex-direction:column;align-items:center;
+  text-align:center;
+  position:relative;overflow:hidden;
+  transition:transform 0.15s;
+  flex:1;justify-content:center;
+  min-height:280px;
+}
 .sos-card::before{
   content:'';position:absolute;inset:0;
-  background:radial-gradient(circle at 50% 30%, rgba(255,255,255,0.08), transparent 70%);
+  background:radial-gradient(circle at 50% 20%, rgba(255,255,255,0.07) 0%, transparent 65%);
   pointer-events:none;
 }
-.sos-card-icon{
-  width:64px;height:64px;border-radius:50%;
+.sos-card::after{
+  content:'';position:absolute;inset:0;
+  border-radius:24px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);
+  pointer-events:none;
+}
+.sos-card.fire{background:linear-gradient(150deg,#3d0505 0%,#6b1111 40%,#991b1b 100%);}
+.sos-card.medical{background:linear-gradient(150deg,#051535 0%,#0f2f6b 40%,#1e40af 100%);}
+.sos-card.security{background:linear-gradient(150deg,#1a0535 0%,#3b1167 40%,#5b21b6 100%);}
+
+.sos-icon-wrap{
+  width:80px;height:80px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-size:32px;margin-bottom:14px;
-  animation:glow 2s ease-in-out infinite;
+  font-size:38px;margin-bottom:18px;
+  position:relative;
 }
-.fire .sos-card-icon{background:rgba(239,68,68,0.25);box-shadow:0 0 0 0 rgba(239,68,68,0.5);}
-.health .sos-card-icon{background:rgba(59,130,246,0.25);box-shadow:0 0 0 0 rgba(59,130,246,0.5);}
-.security .sos-card-icon{background:rgba(139,92,246,0.25);box-shadow:0 0 0 0 rgba(139,92,246,0.5);}
-@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5);}50%{box-shadow:0 0 20px 8px rgba(239,68,68,0.2);}}
-.health .sos-card-icon{animation-name:glow-blue;}
-@keyframes glow-blue{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5);}50%{box-shadow:0 0 20px 8px rgba(59,130,246,0.2);}}
-.security .sos-card-icon{animation-name:glow-purple;}
-@keyframes glow-purple{0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,0.5);}50%{box-shadow:0 0 20px 8px rgba(139,92,246,0.2);}}
-.sos-card-name{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;letter-spacing:2px;margin-bottom:6px;}
-.fire .sos-card-name{color:#fc8181;}
-.health .sos-card-name{color:#63b3ed;}
-.security .sos-card-name{color:#b794f4;}
-.sos-card-desc{font-size:12px;color:rgba(255,255,255,0.5);line-height:1.6;margin-bottom:18px;}
+.fire .sos-icon-wrap{
+  background:rgba(239,68,68,0.18);
+  box-shadow:0 0 0 1px rgba(239,68,68,0.25),0 8px 32px rgba(239,68,68,0.3);
+  animation:glow-fire 2.5s ease-in-out infinite;
+}
+.medical .sos-icon-wrap{
+  background:rgba(59,130,246,0.18);
+  box-shadow:0 0 0 1px rgba(59,130,246,0.25),0 8px 32px rgba(59,130,246,0.3);
+  animation:glow-blue 2.5s ease-in-out infinite;
+}
+.security .sos-icon-wrap{
+  background:rgba(139,92,246,0.18);
+  box-shadow:0 0 0 1px rgba(139,92,246,0.25),0 8px 32px rgba(139,92,246,0.3);
+  animation:glow-purple 2.5s ease-in-out infinite;
+}
+@keyframes glow-fire{0%,100%{box-shadow:0 0 0 1px rgba(239,68,68,0.25),0 8px 32px rgba(239,68,68,0.2);}50%{box-shadow:0 0 0 1px rgba(239,68,68,0.4),0 12px 48px rgba(239,68,68,0.4);}}
+@keyframes glow-blue{0%,100%{box-shadow:0 0 0 1px rgba(59,130,246,0.25),0 8px 32px rgba(59,130,246,0.2);}50%{box-shadow:0 0 0 1px rgba(59,130,246,0.4),0 12px 48px rgba(59,130,246,0.4);}}
+@keyframes glow-purple{0%,100%{box-shadow:0 0 0 1px rgba(139,92,246,0.25),0 8px 32px rgba(139,92,246,0.2);}50%{box-shadow:0 0 0 1px rgba(139,92,246,0.4),0 12px 48px rgba(139,92,246,0.4);}}
+
+.sos-name{
+  font-family:'Rajdhani',sans-serif;font-size:34px;font-weight:700;
+  letter-spacing:3px;margin-bottom:8px;
+}
+.fire .sos-name{color:#fca5a5;}
+.medical .sos-name{color:#93c5fd;}
+.security .sos-name{color:#c4b5fd;}
+
+.sos-desc{font-size:13px;color:rgba(255,255,255,0.45);line-height:1.6;margin-bottom:6px;}
+.sos-swipe-hint{font-size:10px;color:rgba(255,255,255,0.2);letter-spacing:1px;margin-bottom:22px;}
+
 .trigger-btn{
-  background:linear-gradient(135deg,#fc8181,#e53e3e);
-  border:none;border-radius:30px;
-  padding:14px 48px;
-  font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;
-  letter-spacing:2px;color:#fff;cursor:pointer;
-  box-shadow:0 6px 20px rgba(229,62,62,0.4);
-  transition:transform 0.1s,box-shadow 0.1s;
+  border:none;border-radius:50px;
+  padding:15px 52px;
+  font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;
+  letter-spacing:2.5px;color:#fff;cursor:pointer;
+  transition:transform 0.1s,box-shadow 0.2s,opacity 0.1s;
   -webkit-tap-highlight-color:transparent;
+  position:relative;overflow:hidden;
 }
-.trigger-btn:active{transform:scale(0.95);box-shadow:0 2px 10px rgba(229,62,62,0.3);}
-.health .trigger-btn{background:linear-gradient(135deg,#63b3ed,#2b6cb0);box-shadow:0 6px 20px rgba(43,108,176,0.4);}
-.health .trigger-btn:active{box-shadow:0 2px 10px rgba(43,108,176,0.3);}
-.security .trigger-btn{background:linear-gradient(135deg,#b794f4,#6b46c1);box-shadow:0 6px 20px rgba(107,70,193,0.4);}
-.security .trigger-btn:active{box-shadow:0 2px 10px rgba(107,70,193,0.3);}
+.trigger-btn::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);
+  pointer-events:none;
+}
+.fire .trigger-btn{
+  background:linear-gradient(135deg,#ef4444,#dc2626);
+  box-shadow:0 8px 24px rgba(239,68,68,0.5),0 2px 8px rgba(239,68,68,0.3);
+}
+.medical .trigger-btn{
+  background:linear-gradient(135deg,#3b82f6,#2563eb);
+  box-shadow:0 8px 24px rgba(59,130,246,0.5),0 2px 8px rgba(59,130,246,0.3);
+}
+.security .trigger-btn{
+  background:linear-gradient(135deg,#8b5cf6,#7c3aed);
+  box-shadow:0 8px 24px rgba(139,92,246,0.5),0 2px 8px rgba(139,92,246,0.3);
+}
+.trigger-btn:active{transform:scale(0.96);opacity:0.9;}
 
-/* DOTS NAV */
-.dots{display:flex;justify-content:center;gap:6px;padding:10px 0 8px;}
-.dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);transition:all 0.3s;}
-.dot.active{width:20px;border-radius:3px;background:#e53e3e;}
-.dot.active.blue{background:#2b6cb0;}
-.dot.active.purple{background:#6b46c1;}
+/* ─── DOTS ──────────────────────────────────────────────────────────────── */
+.dots{display:flex;justify-content:center;gap:6px;padding:12px 0 10px;flex-shrink:0;}
+.dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.15);transition:all 0.3s;cursor:pointer;}
+.dot.active{width:22px;border-radius:3px;}
+.dot.active.red{background:#ef4444;}
+.dot.active.blue{background:#3b82f6;}
+.dot.active.purple{background:#8b5cf6;}
 
-/* BOTTOM NAV */
+/* ─── BOTTOM NAV ────────────────────────────────────────────────────────── */
 .bottomnav{
   display:flex;
-  border-top:1px solid rgba(255,255,255,0.07);
-  background:#0d0d1a;
+  border-top:1px solid rgba(255,255,255,0.05);
+  background:rgba(8,8,18,0.95);
   flex-shrink:0;
+  backdrop-filter:blur(20px);
+  padding-bottom:4px;
 }
 .nav-item{
-  flex:1;padding:10px 0 12px;
+  flex:1;padding:10px 0 10px;
   display:flex;flex-direction:column;align-items:center;gap:4px;
   cursor:pointer;-webkit-tap-highlight-color:transparent;
-  transition:opacity 0.15s;
+  transition:opacity 0.15s;position:relative;
 }
-.nav-item:active{opacity:0.6;}
-.nav-icon{font-size:18px;opacity:0.5;}
-.nav-label{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#4a5568;font-weight:600;}
+.nav-item:active{opacity:0.5;}
+.nav-icon{font-size:17px;opacity:0.35;transition:opacity 0.2s;}
+.nav-label{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#374151;font-weight:700;transition:color 0.2s;}
 .nav-item.active .nav-icon{opacity:1;}
-.nav-item.active .nav-label{color:#e53e3e;}
+.nav-item.active .nav-label{color:#ef4444;}
+.nav-item.active::after{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:24px;height:2px;border-radius:0 0 2px 2px;
+  background:linear-gradient(90deg,transparent,#ef4444,transparent);
+}
+/* Override active indicator for non-fire tabs when those nav items are active */
+#nav-guidelines.active .nav-label{color:#94a3b8;}
+#nav-guidelines.active::after{background:linear-gradient(90deg,transparent,#94a3b8,transparent);}
+#nav-operator.active .nav-label{color:#f87171;}
+#nav-operator.active::after{background:linear-gradient(90deg,transparent,#f87171,transparent);}
+#nav-map.active .nav-label{color:#94a3b8;}
+#nav-map.active::after{background:linear-gradient(90deg,transparent,#94a3b8,transparent);}
 
-/* PAGES */
-.page{display:none; flex:1; flex-direction:column; overflow-y:auto; min-height:0;}
-.page.active{display:flex;}
+/* ─── GUIDELINES PAGE ───────────────────────────────────────────────────── */
+#page-guidelines{padding-top:4px;}
+.section-header{
+  padding:16px 16px 10px;
+  font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;
+  color:#f1f5f9;letter-spacing:0.5px;
+}
+.guidelines-content{padding:0 0 16px;}
 
-/* GUIDELINES PAGE */
-.guidelines-content{padding:0 16px 16px;}
-.guidelines-title{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:12px;padding-top:4px;}
 .guideline-item{
-  background:rgba(255,255,255,0.04);
-  border:1px solid rgba(255,255,255,0.07);
-  border-radius:12px;padding:14px;margin-bottom:8px;
-  display:flex;gap:12px;align-items:flex-start;
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:16px;padding:16px;margin-bottom:8px;
+  display:flex;gap:14px;align-items:flex-start;
+  transition:background 0.2s;
+  backdrop-filter:blur(10px);
 }
-.gi-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
-.gi-title{font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:3px;}
-.gi-desc{font-size:11px;color:#718096;line-height:1.5;}
+.guideline-item:active{background:rgba(255,255,255,0.05);}
+.gi-icon-wrap{
+  width:40px;height:40px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;flex-shrink:0;
+}
+.gi-icon-wrap.fire{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.15);}
+.gi-icon-wrap.medical{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.15);}
+.gi-icon-wrap.security{background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.15);}
+.gi-icon-wrap.neutral{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);}
 .gi-tag{
-  display:inline-block;font-size:9px;letter-spacing:1px;text-transform:uppercase;
-  padding:2px 7px;border-radius:20px;margin-bottom:4px;font-weight:600;
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:8px;letter-spacing:1.2px;text-transform:uppercase;
+  padding:2px 8px;border-radius:20px;margin-bottom:5px;font-weight:700;
 }
-.tag-fire{background:rgba(239,68,68,0.15);color:#fc8181;}
-.tag-health{background:rgba(59,130,246,0.15);color:#63b3ed;}
-.tag-security{background:rgba(139,92,246,0.15);color:#b794f4;}
+.tag-fire{background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);}
+.tag-health{background:rgba(59,130,246,0.12);color:#93c5fd;border:1px solid rgba(59,130,246,0.2);}
+.tag-security{background:rgba(139,92,246,0.12);color:#c4b5fd;border:1px solid rgba(139,92,246,0.2);}
+.tag-neutral{background:rgba(255,255,255,0.05);color:#64748b;border:1px solid rgba(255,255,255,0.08);}
+.gi-title{font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px;line-height:1.3;}
+.gi-desc{font-size:11px;color:#475569;line-height:1.6;}
 
-/* OPERATOR PAGE */
-.operator-content{padding:0 16px 16px;}
+/* ─── OPERATOR PAGE ─────────────────────────────────────────────────────── */
+#page-operator{padding-top:4px;}
+.operator-content{padding:0 0 16px;}
+
 .op-card{
-  background:rgba(255,255,255,0.04);
-  border:1px solid rgba(255,255,255,0.07);
-  border-radius:14px;padding:18px;margin-bottom:10px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:16px;padding:16px;margin-bottom:8px;
   display:flex;align-items:center;gap:14px;
+  transition:background 0.15s;
+  backdrop-filter:blur(10px);
 }
+.op-card:active{background:rgba(255,255,255,0.05);}
 .op-avatar{
-  width:46px;height:46px;border-radius:50%;
+  width:44px;height:44px;border-radius:14px;
   display:flex;align-items:center;justify-content:center;
   font-size:20px;flex-shrink:0;
 }
+.op-avatar.medical{background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.15);}
+.op-avatar.fire{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.15);}
+.op-avatar.security{background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.15);}
+.op-avatar.neutral{background:rgba(200,169,110,0.1);border:1px solid rgba(200,169,110,0.15);}
 .op-info{flex:1;}
-.op-name{font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:2px;}
-.op-role{font-size:11px;color:#718096;}
+.op-name{font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:2px;line-height:1.3;}
+.op-role{font-size:11px;color:#475569;font-weight:500;}
 .op-call-btn{
-  background:rgba(72,187,120,0.15);
-  border:1px solid rgba(72,187,120,0.3);
-  border-radius:30px;padding:8px 16px;
-  font-size:11px;font-weight:600;color:#68d391;
-  cursor:pointer;letter-spacing:0.5px;
-  transition:all 0.15s;white-space:nowrap;
+  width:40px;height:40px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(16,185,129,0.1);
+  border:1px solid rgba(16,185,129,0.25);
+  cursor:pointer;font-size:16px;
+  transition:background 0.15s,transform 0.1s,box-shadow 0.15s;
+  -webkit-tap-highlight-color:transparent;
+  box-shadow:0 2px 8px rgba(16,185,129,0.1);
 }
-.op-call-btn:active{background:rgba(72,187,120,0.3);}
+.op-call-btn:active{background:rgba(16,185,129,0.2);transform:scale(0.93);}
 
-/* EVAC MAP PAGE — full screen inside .main, no side padding */
-#page-map {
-  display: none;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-  position: relative;
-  margin: 0 -16px; /* cancel .main's padding so map goes edge-to-edge */
+/* ─── EVAC MAP PAGE ─────────────────────────────────────────────────────── */
+#page-map{
+  display:none;flex:1;flex-direction:column;
+  overflow:hidden;min-height:0;position:relative;
+  margin:0 -16px;
 }
-#page-map.active { display: flex; }
+#page-map.active{display:flex;}
 
-#root-container {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-  touch-action: none;
-  background: #050508;
+/* Map header bar */
+.map-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 16px 5px;
+  background:rgba(255,255,255,0.02);
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  flex-shrink:0;
 }
-
-#root {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+.map-header-title{
+  font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;
+  color:#e2e8f0;letter-spacing:0.5px;
 }
+.map-floor-badge{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px;padding:4px 10px;
+  font-size:10px;font-weight:600;color:#94a3b8;letter-spacing:0.5px;
+}
+.map-legend{
+  display:flex;gap:12px;
+  padding:8px 16px;
+  background:rgba(255,255,255,0.015);
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  flex-shrink:0;overflow-x:auto;
+}
+.map-legend::-webkit-scrollbar{height:0;}
+.legend-item{
+  display:flex;align-items:center;gap:5px;white-space:nowrap;
+}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.legend-dot.exit{background:#22c55e;}
+.legend-dot.stairwell{background:#f59e0b;}
+.legend-dot.assembly{background:#3b82f6;}
+.legend-dot.extinguisher{background:#ef4444;}
+.legend-label{font-size:9px;color:#475569;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;}
 
-/* OVERLAY */
+#root-container{
+  flex:1;min-height:0;position:relative;overflow:hidden;
+  touch-action:none;background:#050508;
+}
+#root{width:100%;height:100%;display:flex;flex-direction:column;}
+
+/* ─── OVERLAYS ──────────────────────────────────────────────────────────── */
 .overlay{
   position:absolute;inset:0;z-index:50;
-  background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);
+  background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);
   display:none;align-items:flex-end;justify-content:center;
-  padding:20px;
+  padding:16px;
 }
 .overlay.open{display:flex;}
+
 .confirm-sheet{
-  background:#161628;
-  border:1px solid rgba(255,255,255,0.1);
-  border-radius:24px;padding:28px 24px;
-  width:100%;animation:slideUp 0.25s ease;
+  background:rgba(13,13,28,0.98);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:28px;padding:28px 22px 24px;
+  width:100%;
+  box-shadow:0 -20px 60px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.04);
+  animation:slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1);
 }
-@keyframes slideUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
-.cs-icon{font-size:44px;text-align:center;margin-bottom:12px;}
-.cs-title{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:#fff;text-align:center;margin-bottom:8px;}
-.cs-desc{font-size:12px;color:#718096;text-align:center;line-height:1.6;margin-bottom:22px;}
+@keyframes slideUp{from{transform:translateY(50px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+.cs-icon{font-size:46px;text-align:center;margin-bottom:14px;}
+.cs-title{
+  font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;
+  color:#fff;text-align:center;margin-bottom:8px;letter-spacing:0.5px;
+}
+.cs-desc{font-size:12px;color:#64748b;text-align:center;line-height:1.7;margin-bottom:16px;}
 .cs-warning{
-  background:rgba(255,200,0,0.07);border:1px solid rgba(255,200,0,0.15);
-  border-radius:10px;padding:10px 14px;margin-bottom:20px;
-  font-size:11px;color:#f6e05e;line-height:1.5;text-align:center;
+  background:rgba(234,179,8,0.06);
+  border:1px solid rgba(234,179,8,0.15);
+  border-radius:12px;padding:10px 14px;margin-bottom:18px;
+  font-size:11px;color:#fde047;line-height:1.6;text-align:center;
 }
-.countdown-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;}
+.countdown-wrap{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:20px;}
 .countdown-circle{
-  width:54px;height:54px;border-radius:50%;
-  background:rgba(239,68,68,0.1);border:2px solid rgba(239,68,68,0.4);
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(239,68,68,0.08);
+  border:2px solid rgba(239,68,68,0.3);
   display:flex;align-items:center;justify-content:center;
-  font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:#fc8181;
+  font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:#f87171;
 }
-.countdown-label{font-size:12px;color:#718096;}
+.countdown-label{font-size:12px;color:#475569;}
 .cs-btns{display:flex;gap:10px;}
 .cs-cancel{
   flex:1;padding:14px;border-radius:14px;
-  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
-  color:#a0aec0;font-size:13px;font-weight:600;cursor:pointer;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  color:#94a3b8;font-size:13px;font-weight:600;cursor:pointer;
   font-family:'Inter',sans-serif;
+  transition:background 0.15s;
 }
+.cs-cancel:active{background:rgba(255,255,255,0.08);}
 .cs-confirm{
   flex:1;padding:14px;border-radius:14px;border:none;
   font-size:13px;font-weight:700;cursor:pointer;
   font-family:'Inter',sans-serif;letter-spacing:0.5px;
-  transition:transform 0.1s;
+  transition:transform 0.1s,opacity 0.1s;color:#fff;
 }
-.cs-confirm:active{transform:scale(0.97);}
-.cs-confirm.fire{background:linear-gradient(135deg,#e53e3e,#c53030);color:#fff;}
-.cs-confirm.health{background:linear-gradient(135deg,#2b6cb0,#2c5282);color:#fff;}
-.cs-confirm.security{background:linear-gradient(135deg,#6b46c1,#553c9a);color:#fff;}
+.cs-confirm:active{transform:scale(0.97);opacity:0.9;}
+.cs-confirm.fire{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 16px rgba(239,68,68,0.4);}
+.cs-confirm.health{background:linear-gradient(135deg,#3b82f6,#2563eb);box-shadow:0 4px 16px rgba(59,130,246,0.4);}
+.cs-confirm.security{background:linear-gradient(135deg,#8b5cf6,#7c3aed);box-shadow:0 4px 16px rgba(139,92,246,0.4);}
 
-/* DISPATCHED OVERLAY */
+/* ─── DISPATCHED OVERLAY ────────────────────────────────────────────────── */
 .dispatched-overlay{
   position:absolute;inset:0;z-index:60;
-  background:#0d0d1a;
+  background:#080812;
   display:none;flex-direction:column;align-items:center;justify-content:center;
-  padding:32px 24px;text-align:center;
+  padding:32px 20px;text-align:center;
 }
 .dispatched-overlay.open{display:flex;}
+
 .dispatch-ring{
-  width:100px;height:100px;border-radius:50%;
+  width:104px;height:104px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-size:44px;margin-bottom:24px;
+  font-size:48px;margin-bottom:22px;
   position:relative;
 }
 .dispatch-ring::before,.dispatch-ring::after{
-  content:'';position:absolute;inset:0;border-radius:50%;
-  animation:ripple 1.5s ease-out infinite;
+  content:'';position:absolute;inset:-10px;border-radius:50%;
+  animation:ripple 1.8s ease-out infinite;
 }
-.dispatch-ring::after{animation-delay:0.75s;}
-.fire-dispatch .dispatch-ring{background:rgba(239,68,68,0.15);}
-.fire-dispatch .dispatch-ring::before,.fire-dispatch .dispatch-ring::after{border:2px solid rgba(239,68,68,0.4);}
-.health-dispatch .dispatch-ring{background:rgba(59,130,246,0.15);}
-.health-dispatch .dispatch-ring::before,.health-dispatch .dispatch-ring::after{border:2px solid rgba(59,130,246,0.4);}
-.security-dispatch .dispatch-ring{background:rgba(139,92,246,0.15);}
-.security-dispatch .dispatch-ring::before,.security-dispatch .dispatch-ring::after{border:2px solid rgba(139,92,246,0.4);}
-@keyframes ripple{from{transform:scale(1);opacity:1;}to{transform:scale(2);opacity:0;}}
-.dispatch-status{font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:600;}
-.fire-dispatch .dispatch-status{color:#fc8181;}
-.health-dispatch .dispatch-status{color:#63b3ed;}
-.security-dispatch .dispatch-status{color:#b794f4;}
-.dispatch-title{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;color:#fff;margin-bottom:10px;}
-.dispatch-sub{font-size:13px;color:#718096;line-height:1.6;margin-bottom:8px;}
-.dispatch-eta{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:600;margin-bottom:28px;}
-.fire-dispatch .dispatch-eta{color:#fc8181;}
-.health-dispatch .dispatch-eta{color:#63b3ed;}
-.security-dispatch .dispatch-eta{color:#b794f4;}
-.dispatch-instructions{
-  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-  border-radius:14px;padding:14px 16px;margin-bottom:24px;width:100%;
-  text-align:left;
-}
-.di-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#4a5568;margin-bottom:8px;font-weight:600;}
-.di-item{font-size:12px;color:#a0aec0;line-height:1.8;display:flex;gap:8px;}
-.di-item::before{content:'›';color:#718096;}
-.dismiss-btn{
-  border-radius:30px;padding:14px 40px;border:none;
-  font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;
-  letter-spacing:1px;cursor:pointer;color:#fff;
-}
-.fire-dispatch .dismiss-btn{background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.3);color:#fc8181;}
-.health-dispatch .dismiss-btn{background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.3);color:#63b3ed;}
-.security-dispatch .dismiss-btn{background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.3);color:#b794f4;}
+.dispatch-ring::after{animation-delay:0.9s;}
+.fire-dispatch .dispatch-ring{background:rgba(239,68,68,0.12);}
+.fire-dispatch .dispatch-ring::before,.fire-dispatch .dispatch-ring::after{border:1.5px solid rgba(239,68,68,0.35);}
+.health-dispatch .dispatch-ring{background:rgba(59,130,246,0.12);}
+.health-dispatch .dispatch-ring::before,.health-dispatch .dispatch-ring::after{border:1.5px solid rgba(59,130,246,0.35);}
+.security-dispatch .dispatch-ring{background:rgba(139,92,246,0.12);}
+.security-dispatch .dispatch-ring::before,.security-dispatch .dispatch-ring::after{border:1.5px solid rgba(139,92,246,0.35);}
+@keyframes ripple{from{transform:scale(1);opacity:0.8;}to{transform:scale(2.2);opacity:0;}}
 
-/* CALL OVERLAY */
+.dispatch-status{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:8px;font-weight:700;}
+.fire-dispatch .dispatch-status{color:#f87171;}
+.health-dispatch .dispatch-status{color:#93c5fd;}
+.security-dispatch .dispatch-status{color:#c4b5fd;}
+
+.dispatch-title{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:#fff;margin-bottom:10px;}
+.dispatch-sub{font-size:13px;color:#475569;line-height:1.7;margin-bottom:8px;}
+.dispatch-eta{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:600;margin-bottom:24px;}
+.fire-dispatch .dispatch-eta{color:#f87171;}
+.health-dispatch .dispatch-eta{color:#93c5fd;}
+.security-dispatch .dispatch-eta{color:#c4b5fd;}
+
+.dispatch-instructions{
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:16px;padding:14px 16px;margin-bottom:22px;width:100%;text-align:left;
+}
+.di-title{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#334155;margin-bottom:10px;font-weight:700;}
+.di-item{font-size:12px;color:#94a3b8;line-height:1.9;display:flex;gap:10px;align-items:flex-start;}
+.di-item::before{content:'›';color:#475569;font-size:14px;line-height:1.5;}
+
+.dismiss-btn{
+  border-radius:50px;padding:14px 44px;border:none;
+  font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;
+  letter-spacing:1.5px;cursor:pointer;
+  transition:transform 0.1s,opacity 0.1s;
+}
+.dismiss-btn:active{transform:scale(0.97);opacity:0.9;}
+.fire-dispatch .dismiss-btn{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#f87171;}
+.health-dispatch .dismiss-btn{background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:#93c5fd;}
+.security-dispatch .dismiss-btn{background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.25);color:#c4b5fd;}
+
+/* ─── CALL OVERLAY ──────────────────────────────────────────────────────── */
 .call-overlay{
   position:absolute;inset:0;z-index:70;
-  background:#0d0d1a;
+  background:#080812;
   display:none;flex-direction:column;align-items:center;justify-content:center;
   padding:40px 24px;text-align:center;
 }
 .call-overlay.open{display:flex;}
 .call-avatar{
-  width:80px;height:80px;border-radius:50%;
+  width:84px;height:84px;border-radius:28px;
   display:flex;align-items:center;justify-content:center;
-  font-size:36px;margin-bottom:16px;
-  background:rgba(72,187,120,0.1);border:2px solid rgba(72,187,120,0.3);
-  animation:pulse-call 1.5s ease-in-out infinite;
+  font-size:36px;margin-bottom:20px;
+  background:rgba(16,185,129,0.08);
+  border:1px solid rgba(16,185,129,0.2);
+  animation:pulse-call 1.8s ease-in-out infinite;
 }
-@keyframes pulse-call{0%,100%{box-shadow:0 0 0 0 rgba(72,187,120,0.3);}50%{box-shadow:0 0 16px rgba(72,187,120,0);}}
-.call-name{font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:#fff;margin-bottom:4px;}
-.call-status{font-size:13px;color:#68d391;margin-bottom:8px;}
-.call-timer{font-family:'Rajdhani',sans-serif;font-size:18px;color:#718096;margin-bottom:40px;}
+@keyframes pulse-call{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.25);}50%{box-shadow:0 0 0 16px rgba(16,185,129,0);}}
+.call-name{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;color:#fff;margin-bottom:4px;}
+.call-status{font-size:13px;color:#10b981;margin-bottom:8px;font-weight:500;}
+.call-timer{font-family:'Rajdhani',sans-serif;font-size:20px;color:#334155;margin-bottom:48px;font-weight:600;}
 .call-endBtn{
-  background:#e53e3e;border:none;border-radius:50%;
-  width:64px;height:64px;font-size:24px;cursor:pointer;
+  background:linear-gradient(135deg,#ef4444,#dc2626);
+  border:none;border-radius:50%;
+  width:64px;height:64px;font-size:22px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 24px rgba(239,68,68,0.4);
+  transition:transform 0.1s;
+  -webkit-tap-highlight-color:transparent;
 }
+.call-endBtn:active{transform:scale(0.92);}
 </style>
   </head>
   <body>
 
 <div class="phone">
+
+  <!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
   <div class="statusbar">
-    <div class="statusbar-left">
-      <div class="guest-icon">👤</div>
-      <div class="statusbar-title">
-        <span id="ui-guest-room" style="font-weight:700;color:#ff4d4d;">...</span> · 
-        <span id="ui-guest-name">Loading...</span>
+    <div class="guest-avatar">👤</div>
+    <div class="statusbar-info">
+      <div class="statusbar-room">
+        <span id="ui-guest-room" style="font-weight:700;">Room ...</span>
+        <span class="live-badge"><span class="live-dot"></span>LIVE</span>
       </div>
+      <div class="statusbar-sub" id="ui-guest-name">Loading...</div>
     </div>
-    <div class="statusbar-right">
-      <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-        <path d="M9 2.5C11.8 2.5 14.3 3.7 16 5.7L17.5 4C15.4 1.5 12.4 0 9 0C5.6 0 2.6 1.5 0.5 4L2 5.7C3.7 3.7 6.2 2.5 9 2.5Z" fill="white" opacity="0.5"/>
-        <path d="M9 6C10.9 6 12.6 6.8 13.8 8.1L15.3 6.4C13.7 4.7 11.5 3.5 9 3.5C6.5 3.5 4.3 4.7 2.7 6.4L4.2 8.1C5.4 6.8 7.1 6 9 6Z" fill="white" opacity="0.7"/>
-        <circle cx="9" cy="12" r="2" fill="white"/>
-      </svg>
-    </div>
+    <div class="online-dot"></div>
   </div>
 
+  <!-- ═══ INFO TILES ════════════════════════════════════════════════════════ -->
   <div class="info-strip">
     <div class="info-pill">
-      <div class="info-pill-icon">📍</div>
-      <div class="info-pill-text">GPS Signal:<span>Active</span></div>
+      <div class="info-pill-label">Check-Out</div>
+      <div class="info-pill-value highlight" id="ui-checkout-date">--</div>
     </div>
     <div class="info-pill">
-      <div class="info-pill-icon">🔒</div>
-      <div class="info-pill-text">Secure<span>Line</span></div>
+      <div class="info-pill-label">Nights</div>
+      <div class="info-pill-value" id="ui-stay-nights">--</div>
+    </div>
+    <div class="info-pill">
+      <div class="info-pill-label">Floor</div>
+      <div class="info-pill-value" id="ui-guest-floor">--</div>
+    </div>
+    <div class="info-pill">
+      <div class="info-pill-label">Emerg.</div>
+      <div class="info-pill-value accent">101</div>
     </div>
   </div>
 
-  <div class="tiles">
-    <div class="tile">
-      <div class="tile-label">Check-Out</div>
-      <div class="tile-value" id="ui-checkout-date" style="font-size:15px;">--</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Nights</div>
-      <div class="tile-value" id="ui-stay-nights">--</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Floor</div>
-      <div class="tile-value" id="ui-guest-floor">--</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Emergency Ext</div>
-      <div class="tile-value">101</div>
-    </div>
-  </div>
-
+  <!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
   <div class="main">
 
+    <!-- SOS PAGE -->
     <div id="page-sos" class="page active">
-      <div id="sos-card" class="sos-card fire">
-        <div class="sos-card-icon" id="sos-icon">🔥</div>
-        <div class="sos-card-name" id="sos-name">FIRE</div>
-        <div class="sos-card-desc" id="sos-desc">Smoke, flames, or gas leak detected.</div>
-        <button class="trigger-btn" id="trigger-btn" onclick="openConfirm()">TRIGGER</button>
+      <div class="emergency-badge">
+        <span class="emergency-badge-dot"></span>EMERGENCY ALERT
       </div>
+
+      <div id="sos-card" class="sos-card fire">
+        <div class="sos-icon-wrap" id="sos-icon">🔥</div>
+        <div class="sos-name" id="sos-name">FIRE</div>
+        <div class="sos-desc" id="sos-desc">Smoke, flames, or gas leak detected.</div>
+        <div class="sos-swipe-hint">Swipe to see other alert types.</div>
+        <button class="trigger-btn" id="trigger-btn" onclick="openConfirm()">TRIGGER ALERT</button>
+      </div>
+
       <div class="dots">
-        <div class="dot active" id="dot0" onclick="switchSOS(0)"></div>
+        <div class="dot active red" id="dot0" onclick="switchSOS(0)"></div>
         <div class="dot" id="dot1" onclick="switchSOS(1)"></div>
         <div class="dot" id="dot2" onclick="switchSOS(2)"></div>
       </div>
     </div>
 
+    <!-- GUIDELINES PAGE -->
     <div id="page-guidelines" class="page">
+      <div class="section-header">Emergency Guidelines</div>
       <div class="guidelines-content">
-        <div class="guidelines-title">Emergency Guidelines</div>
         <div class="guideline-item">
-          <div class="gi-icon">🔥</div>
+          <div class="gi-icon-wrap fire">🔥</div>
           <div>
             <div class="gi-tag tag-fire">Fire Alert</div>
             <div class="gi-title">If you detect fire or smoke</div>
@@ -455,7 +717,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
           </div>
         </div>
         <div class="guideline-item">
-          <div class="gi-icon">⚕️</div>
+          <div class="gi-icon-wrap medical">⚕️</div>
           <div>
             <div class="gi-tag tag-health">Medical</div>
             <div class="gi-title">Medical Emergency</div>
@@ -463,7 +725,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
           </div>
         </div>
         <div class="guideline-item">
-          <div class="gi-icon">🛡️</div>
+          <div class="gi-icon-wrap security">🛡️</div>
           <div>
             <div class="gi-tag tag-security">Security</div>
             <div class="gi-title">Robbery or Threat</div>
@@ -471,8 +733,9 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
           </div>
         </div>
         <div class="guideline-item">
-          <div class="gi-icon">📋</div>
+          <div class="gi-icon-wrap neutral">📋</div>
           <div>
+            <div class="gi-tag tag-neutral">Policy</div>
             <div class="gi-title">False Alarm Policy</div>
             <div class="gi-desc">False alerts may incur a ₹5,000 charge. Always press Cancel if triggered by mistake within 5 seconds.</div>
           </div>
@@ -480,46 +743,52 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
       </div>
     </div>
 
+    <!-- OPERATOR PAGE -->
     <div id="page-operator" class="page">
+      <div class="section-header">Contact Operator</div>
       <div class="operator-content">
-        <div class="guidelines-title">Contact Operator</div>
         <div class="op-card">
-          <div class="op-avatar" style="background:rgba(59,130,246,0.15);">👩‍⚕️</div>
+          <div class="op-avatar medical">👩‍⚕️</div>
           <div class="op-info">
             <div class="op-name">Dr. Meena Pillai</div>
             <div class="op-role">On-call Medical Officer</div>
           </div>
-          <button class="op-call-btn" onclick="startCall('Dr. Meena Pillai','Medical Officer')">📞 Call</button>
+          <button class="op-call-btn" onclick="startCall('Dr. Meena Pillai','Medical Officer')">📞</button>
         </div>
         <div class="op-card">
-          <div class="op-avatar" style="background:rgba(239,68,68,0.15);">👨‍🚒</div>
+          <div class="op-avatar fire">👨‍🚒</div>
           <div class="op-info">
             <div class="op-name">Fire Safety Desk</div>
             <div class="op-role">24/7 Fire Response Unit</div>
           </div>
-          <button class="op-call-btn" onclick="startCall('Fire Safety Desk','Fire Response')">📞 Call</button>
+          <button class="op-call-btn" onclick="startCall('Fire Safety Desk','Fire Response')">📞</button>
         </div>
         <div class="op-card">
-          <div class="op-avatar" style="background:rgba(139,92,246,0.15);">👮</div>
+          <div class="op-avatar security">👮</div>
           <div class="op-info">
             <div class="op-name">Security Command</div>
-            <div class="op-role">Hotel Security & Surveillance</div>
+            <div class="op-role">Hotel Security &amp; Surveillance</div>
           </div>
-          <button class="op-call-btn" onclick="startCall('Security Command','Hotel Security')">📞 Call</button>
+          <button class="op-call-btn" onclick="startCall('Security Command','Hotel Security')">📞</button>
         </div>
         <div class="op-card">
-          <div class="op-avatar" style="background:rgba(200,169,110,0.15);">🛎️</div>
+          <div class="op-avatar neutral">🛎️</div>
           <div class="op-info">
             <div class="op-name">Front Desk</div>
             <div class="op-role">General Assistance · Ext. 000</div>
           </div>
-          <button class="op-call-btn" onclick="startCall('Front Desk','Guest Services')">📞 Call</button>
+          <button class="op-call-btn" onclick="startCall('Front Desk','Guest Services')">📞</button>
         </div>
       </div>
     </div>
 
-    <!-- EVAC MAP PAGE: full-screen, no side padding (margin:-16px cancels .main padding) -->
+    <!-- EVAC MAP PAGE -->
     <div id="page-map" class="page">
+      <div class="map-header">
+        <div class="map-header-title">🗺️ Evacuation Map</div>
+        <div class="map-floor-badge" id="map-floor-badge">FLOOR --</div>
+      </div>
+
       <div id="root-container">
         <div id="root"></div>
       </div>
@@ -527,10 +796,11 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 
   </div><!-- /.main -->
 
+  <!-- ═══ BOTTOM NAV ════════════════════════════════════════════════════════ -->
   <div class="bottomnav">
     <div class="nav-item active" id="nav-sos" onclick="showTab('sos')">
       <div class="nav-icon">🆘</div>
-      <div class="nav-label">Emergency SOS</div>
+      <div class="nav-label">Emergency</div>
     </div>
     <div class="nav-item" id="nav-guidelines" onclick="showTab('guidelines')">
       <div class="nav-icon">📋</div>
@@ -546,6 +816,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     </div>
   </div>
 
+  <!-- ═══ CONFIRM OVERLAY ════════════════════════════════════════════════ -->
   <div class="overlay" id="confirm-overlay">
     <div class="confirm-sheet">
       <div class="cs-icon" id="cs-icon">🔥</div>
@@ -563,6 +834,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     </div>
   </div>
 
+  <!-- ═══ DISPATCHED OVERLAY ════════════════════════════════════════════ -->
   <div class="dispatched-overlay fire-dispatch" id="dispatched-overlay">
     <div class="dispatch-ring" id="dispatch-ring">🚨</div>
     <div class="dispatch-status" id="dispatch-status">ALERT SENT</div>
@@ -576,6 +848,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     <button class="dismiss-btn" id="dismiss-btn" onclick="closeDismiss()">Return to Home</button>
   </div>
 
+  <!-- ═══ CALL OVERLAY ══════════════════════════════════════════════════ -->
   <div class="call-overlay" id="call-overlay">
     <div class="call-avatar">👤</div>
     <div class="call-name" id="call-name">Front Desk</div>
@@ -588,10 +861,7 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// BOOT: Read guestProfile from sessionStorage immediately (before React mounts)
-// so the checkout and nights tiles are never stuck on "--".
-// GuestApp.jsx calls window.updateGuestProfile() again once React is ready,
-// which is a no-op if the values are already the same.
+// BOOT: Read guestProfile from sessionStorage immediately
 // ─────────────────────────────────────────────────────────────────────────────
 (function bootGuestTiles() {
   try {
@@ -599,43 +869,24 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
     if (!raw) return;
     const profile = JSON.parse(raw);
 
-    // ── room & name ──────────────────────────────────────────────────────
-    const room = String(
-      profile.room || profile.room_id || profile.room_number || profile.roomId || ''
-    );
-    const name =
-      profile.name || profile.guest_name || profile.full_name || profile.first_name || '';
+    const room = String(profile.room || profile.room_id || profile.room_number || profile.roomId || '');
+    const name = profile.name || profile.guest_name || profile.full_name || profile.first_name || '';
     if (room) document.getElementById('ui-guest-room').textContent = 'Room ' + room;
-    if (name) document.getElementById('ui-guest-name').textContent = name;
+    if (name) document.getElementById('ui-guest-name').textContent = name + ' · Checked In';
 
-    // ── floor ────────────────────────────────────────────────────────────
-    const floor =
-      profile.floor != null
-        ? profile.floor
-        : room
-        ? Math.floor(Number(room) / 100)
-        : null;
-    if (floor != null)
-      document.getElementById('ui-guest-floor').textContent = String(floor).padStart(2, '0');
+    const floor = profile.floor != null ? profile.floor : room ? Math.floor(Number(room) / 100) : null;
+    if (floor != null) {
+      document.getElementById('ui-guest-floor').textContent = String(floor).padStart(2,'0');
+      document.getElementById('map-floor-badge').textContent = 'FLOOR ' + String(floor).padStart(2,'0');
+    }
 
-    // ── checkout date ────────────────────────────────────────────────────
-    const rawCheckout =
-      profile.checkOutDate ||
-      profile.check_out ||
-      profile.checkout || profile.checkOut ||
-      profile.checkout_date ||
-      profile.check_out_date ||
-      null;
-
-    // Timezone-safe date parser: "YYYY-MM-DD" strings are UTC midnight in JS.
-    // Appending T00:00:00 forces local-time so toLocaleDateString never rolls back a day.
+    const rawCheckout = profile.checkOutDate || profile.check_out || profile.checkout || profile.checkOut || profile.checkout_date || profile.check_out_date || null;
     const parseDateSafe = (str) => {
       if (!str) return null;
       const s = String(str).trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
       return new Date(s);
     };
-
     if (rawCheckout) {
       const d = parseDateSafe(rawCheckout);
       if (d && !isNaN(d)) {
@@ -644,22 +895,17 @@ body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;m
       }
     }
 
-    // ── nights ───────────────────────────────────────────────────────────
     let nights = profile.nights ?? profile.stay_nights ?? null;
     if (nights == null) {
-      const rawCheckin =
-        profile.checkInDate || profile.check_in || profile.checkin || profile.checkIn || null;
+      const rawCheckin = profile.checkInDate || profile.check_in || profile.checkin || profile.checkIn || null;
       if (rawCheckin && rawCheckout) {
         const ci = parseDateSafe(rawCheckin);
         const co = parseDateSafe(rawCheckout);
-        if (ci && co && !isNaN(ci) && !isNaN(co)) {
-          nights = Math.round((co - ci) / 86400000);
-        }
+        if (ci && co && !isNaN(ci) && !isNaN(co)) nights = Math.round((co - ci) / 86400000);
       }
     }
-    if (nights != null && nights !== '--') {
-      document.getElementById('ui-stay-nights').textContent = String(nights).padStart(2, '0');
-    }
+    if (nights != null && nights !== '--')
+      document.getElementById('ui-stay-nights').textContent = String(nights).padStart(2,'0');
   } catch (e) {
     console.warn('[bootGuestTiles] Could not parse guestProfile:', e);
   }
@@ -677,7 +923,7 @@ const sosTypes = [
     dispatchSub:'Fire response team has been notified. Stay low and move toward the nearest stairwell.',
     eta:'ETA: 2–3 minutes',
     steps:['Stay low to avoid smoke inhalation','Feel the door — if hot, do not open','Use the stairwell, never the elevator','Assemble at lobby ground floor'],
-    dotColor:'', btnClass:'fire', dotClass:''
+    dotColor:'red', btnClass:'fire', dotClass:'red'
   },
   {
     type:'medical', icon:'⚕️', name:'MEDICAL',
@@ -713,17 +959,17 @@ let countdownVal = 5;
 let callTimer = null;
 let callSeconds = 0;
 
-// Called by GuestApp.jsx once React has parsed the profile — updates all tiles
-// and SOS confirm descriptions with room-aware copy.
 window.updateGuestProfile = function(data) {
   if (!data) return;
-  if (data.room)                    document.getElementById('ui-guest-room').textContent  = 'Room ' + data.room;
-  if (data.name)                    document.getElementById('ui-guest-name').textContent  = data.name;
-  if (data.checkoutDate != null)    document.getElementById('ui-checkout-date').textContent = data.checkoutDate;
-  if (data.nights != null && data.nights !== '--')
-    document.getElementById('ui-stay-nights').textContent = String(data.nights).padStart(2, '0');
-  if (data.floor != null)
-    document.getElementById('ui-guest-floor').textContent = String(data.floor).padStart(2, '0');
+  if (data.room) {
+    document.getElementById('ui-guest-room').textContent = 'Room ' + data.room;
+    const floorNum = data.floor || Math.floor(Number(data.room) / 100);
+    document.getElementById('map-floor-badge').textContent = 'FLOOR ' + String(floorNum).padStart(2,'0');
+  }
+  if (data.name) document.getElementById('ui-guest-name').textContent = data.name + ' · Checked In';
+  if (data.checkoutDate != null) document.getElementById('ui-checkout-date').textContent = data.checkoutDate;
+  if (data.nights != null && data.nights !== '--') document.getElementById('ui-stay-nights').textContent = String(data.nights).padStart(2,'0');
+  if (data.floor != null) document.getElementById('ui-guest-floor').textContent = String(data.floor).padStart(2,'0');
 
   const room  = data.room  || '';
   const floor = data.floor ? 'Floor ' + data.floor : '';
@@ -742,7 +988,7 @@ function switchSOS(idx){
   document.getElementById('sos-desc').textContent = s.desc;
   for(let i=0;i<3;i++){
     const d = document.getElementById('dot'+i);
-    d.className = 'dot' + (i===idx ? ' active '+(s.dotClass) : '');
+    d.className = 'dot' + (i===idx ? ' active '+sosTypes[i].dotColor : '');
   }
 }
 
@@ -753,20 +999,14 @@ function showTab(tab){
     if (page) page.classList.toggle('active', t === tab);
     if (nav)  nav.classList.toggle('active',  t === tab);
   });
-
-  // Toggle map-active on .phone to hide/show strips and free full height for map
   document.querySelector('.phone').classList.toggle('map-active', tab === 'map');
-
   if (tab === 'map') {
     window.dispatchEvent(new Event('resize'));
     window.dispatchEvent(new CustomEvent('evacmap:open'));
   }
 }
 
-// exitMap kept for backward-compat if GuestApp.jsx still calls it
-function exitMap() {
-  showTab('sos');
-}
+function exitMap() { showTab('sos'); }
 
 function openConfirm(){
   const s = sosTypes[currentSOS];
@@ -793,11 +1033,7 @@ function closeConfirm(){
 function dispatch(){
   closeConfirm();
   const s = sosTypes[currentSOS];
-
-  if (window.triggerGuestSOS) {
-    window.triggerGuestSOS(s.type);
-  }
-
+  if (window.triggerGuestSOS) window.triggerGuestSOS(s.type);
   const d = document.getElementById('dispatched-overlay');
   d.className = 'dispatched-overlay open ' + s.dispatchClass;
   document.getElementById('dispatch-ring').textContent = s.dispatchIcon;
@@ -832,7 +1068,7 @@ function endCall(){
 }
 
 let touchStartX = 0;
-document.getElementById('sos-card').addEventListener('touchstart', e=>{ touchStartX = e.touches[0].clientX; });
+document.getElementById('sos-card').addEventListener('touchstart', e=>{ touchStartX = e.touches[0].clientX; },{passive:true});
 document.getElementById('sos-card').addEventListener('touchend', e=>{
   const dx = e.changedTouches[0].clientX - touchStartX;
   if(Math.abs(dx) > 40){

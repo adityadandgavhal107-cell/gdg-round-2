@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import cron from 'node-cron'; // For 11:00 AM Automated Eviction Engine
+import { SerialPort } from 'serialport';
+import { ReadlineParser } from '@serialport/parser-readline';
 import {
   getFirstRingNeighbors,
   getSecondRingNeighbors,
@@ -21,6 +23,101 @@ const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
+// ── Arduino Serial Config ─────────────────────────────────────────────────────
+const ARDUINO_COM_PORT  = 'COM3';   // ← your Arduino port
+const ARDUINO_ROOM_ID   = '101';    // ← which room the real sensor monitors
+const ARDUINO_BAUD_RATE = 9600;     // must match your Arduino sketch
+
+// Tracks whether the Arduino serial port is currently open
+let arduinoConnected = false;
+
+/**
+ * Parse a single line from the Arduino serial monitor.
+ * Returns: 'fire' | 'smoke' | 'normal'
+ */
+function parseArduinoLine(line) {
+  const l = line.trim();
+  if (l.includes('FIRE DETECTED'))  return 'fire';
+  if (l.includes('SMOKE DETECTED')) return 'smoke';
+  return 'normal';
+}
+
+/**
+ * Open the Arduino serial port and wire up the data pipeline.
+ * Automatically retries every 5 seconds if the port is unavailable.
+ */
+function initArduinoSerial() {
+  let port;
+
+  try {
+    port = new SerialPort({ path: ARDUINO_COM_PORT, baudRate: ARDUINO_BAUD_RATE });
+  } catch (err) {
+    console.error(`[ARDUINO] Failed to open ${ARDUINO_COM_PORT}:`, err.message);
+    io.emit('arduino:status', { status: 'error', port: ARDUINO_COM_PORT });
+    setTimeout(initArduinoSerial, 5000);
+    return;
+  }
+
+  const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
+
+  port.on('open', () => {
+    arduinoConnected = true;
+    console.log(`\n🔌 [ARDUINO] Serial port ${ARDUINO_COM_PORT} opened at ${ARDUINO_BAUD_RATE} baud`);
+    console.log(`   Monitoring Room: ${ARDUINO_ROOM_ID}`);
+    io.emit('arduino:status', { status: 'connected', port: ARDUINO_COM_PORT });
+  });
+
+  port.on('error', (err) => {
+    arduinoConnected = false;
+    console.error(`[ARDUINO] Port error on ${ARDUINO_COM_PORT}:`, err.message);
+    io.emit('arduino:status', { status: 'error', port: ARDUINO_COM_PORT });
+  });
+
+  port.on('close', () => {
+    arduinoConnected = false;
+    console.warn(`[ARDUINO] Port ${ARDUINO_COM_PORT} closed — retrying in 5s…`);
+    io.emit('arduino:status', { status: 'offline', port: ARDUINO_COM_PORT });
+    setTimeout(initArduinoSerial, 5000);
+  });
+
+  parser.on('data', (rawLine) => {
+    const line   = rawLine.trim();
+    if (!line || line === '------------------------') return;
+
+    const parsed = parseArduinoLine(line);
+    const roomId = ARDUINO_ROOM_ID;
+
+    // Broadcast raw line + parsed result to all connected clients for the live feed
+    io.emit('arduino:reading', { raw: line, parsed, roomId });
+
+    if (parsed === 'normal') return; // No hazard — nothing to propagate
+
+    const ts = new Date().toISOString();
+    console.log(`[ARDUINO] Room ${roomId}: ${parsed.toUpperCase()} — "${line}"`);
+
+    // Reuse the exact same hazard functions used by detection:manual
+    if (parsed === 'fire') {
+      propagateFireHazards(roomId);
+    } else if (parsed === 'smoke') {
+      applyHazard(roomId, 'smoke', 0.75);
+    }
+
+    // Emit detection:alert for backward compatibility (AlertEngine listens)
+    const alert = {
+      id:         `arduino_${Date.now()}`,
+      roomId,
+      type:       parsed,
+      timestamp:  ts,
+      confidence: parsed === 'fire' ? 0.98 : 0.75,
+      source:     'arduino_serial',
+    };
+    io.emit('detection:alert', alert);
+
+    // Broadcast the updated full hazard map to all clients
+    broadcastHazards();
+  });
+}
+
 // ── Master Hazard State (Single Source of Truth) ──────────────────────────
 // Shape: { [roomId]: { type: 'fire'|'smoke'|'buffer', intensity: number } }
 const hazards = {};
@@ -34,6 +131,9 @@ let hotelGuests = [];
 
 // ── Hazard severity ordering ──────────────────────────────────────────────
 const SEVERITY = { fire: 3, smoke: 2, buffer: 1 };
+
+// Start the Arduino serial bridge after all state variables are initialized
+initArduinoSerial();
 
 /**
  * Apply a hazard to a room. Never downgrades an existing higher-severity type.
@@ -159,6 +259,14 @@ io.on('connection', (socket) => {
     console.log(`Camera registered for room ${roomId}`);
     admins.forEach(adminId => {
       io.to(adminId).emit('camera:available', { roomId, socketId: socket.id });
+    });
+  });
+
+  // ── Arduino status request (called by SensorSimPanel on mount) ───────
+  socket.on('arduino:request_status', () => {
+    socket.emit('arduino:status', {
+      status: arduinoConnected ? 'connected' : 'offline',
+      port:   ARDUINO_COM_PORT,
     });
   });
 
