@@ -1,14 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import HotelView3D from '../views/HotelView3D';// adjust import path as needed
 
-/* ─────────────────────────────────────────────────────────────────────────
-   LandingPage.jsx  —  fixed authentication & navigation
-   Props:
-     onAdminAuthSuccess    () => void
-     onGuestAuthSuccess    () => void
-     onDafAuthSuccess      () => void
-───────────────────────────────────────────────────────────────────────── */
-
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
   @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
@@ -202,7 +194,6 @@ const STYLES = `
     color: #00d2ff; text-transform: uppercase;
   }
 
-  /* ── Login dropdown (replaces RESPONSE LOGS link) ── */
   .fg-login-dropdown { position: relative; }
   .fg-login-dropdown-btn {
     display: flex; align-items: center; gap: 6px;
@@ -256,7 +247,6 @@ const STYLES = `
   .fg-login-dropdown-item:hover { background: rgba(0,210,255,0.08); color: #00d2ff; }
   .fg-login-dropdown-item .material-symbols-outlined { font-size: 18px; color: #00d2ff; }
 
-  /* ── Dedicated full-screen login views ── */
   .fg-login-screen {
     position: fixed; inset: 0; z-index: 100;
     display: flex; flex-direction: column;
@@ -294,7 +284,6 @@ const STYLES = `
     width: 100%;
   }
 
-  /* ── System Map View ── */
   .fg-sysmap-view {
     position: fixed; inset: 0; z-index: 80;
     display: flex; flex-direction: column;
@@ -672,7 +661,6 @@ const STYLES = `
   .space-y-2 > * + * { margin-top: 0.5rem; }
   .flex-gap4 { display: flex; gap: 1rem; }
 
-  /* Server error message inside login card */
   .fg-server-error {
     color: #ffb4ab;
     font-size: 11px;
@@ -685,11 +673,21 @@ const STYLES = `
   }
 `;
 
+/* ─────────────────────────────────────────────────────────────────────────
+   API BASE URL — uses env var if set, falls back to hardcoded backend URL.
+   This ensures the correct backend is always called regardless of which
+   domain the frontend is served from.
+─────────────────────────────────────────────────────────────────────────*/
+const API_BASE =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
+    ? import.meta.env.VITE_API_URL
+    : 'https://fireguard-backend-abhx.onrender.com/api';
+
 /* ── Role config for success modal ── */
 const ROLE_CONFIG = {
-  admin:    { label: 'COMMAND ADMIN',   body: 'Full system override access initializing.' },
-  guest:    { label: 'HOTEL GUEST HUB', body: 'Personal safety portal loading for your room.' },
-  tactical: { label: 'DAF TACTICAL',    body: 'Identity verified. You will now be prompted for your team OTP to complete authentication.' },
+  admin: { label: 'COMMAND ADMIN', body: 'Full system override access initializing.' },
+  guest: { label: 'HOTEL GUEST HUB', body: 'Personal safety portal loading for your room.' },
+  tactical: { label: 'DAF TACTICAL', body: 'Identity verified. You will now be prompted for your team OTP to complete authentication.' },
 };
 
 /* ── LoginCard configs, keyed by role ── */
@@ -712,7 +710,7 @@ const LOGIN_CARD_CONFIGS = {
     title: 'Hotel Guest',
     desc: 'Safety guidance and personal evacuation assist.',
     userPlaceholder: 'FIRST NAME',
-    passPlaceholder: 'PASSCODE (First 3 letters + Room #)',
+    passPlaceholder: 'PASSCODE(First 3 letters + Room #)',
     btnLabel: 'Enter Safety Hub',
     cardClass: 'guest',
     barClass: 'guest',
@@ -733,8 +731,8 @@ const LOGIN_CARD_CONFIGS = {
 
 /* ── Items shown inside the LOGIN dropdown ── */
 const LOGIN_MENU_ITEMS = [
-  { role: 'admin',    label: 'Login as Admin',    icon: 'admin_panel_settings' },
-  { role: 'guest',    label: 'Login as Guest',    icon: 'meeting_room' },
+  { role: 'admin', label: 'Login as Admin', icon: 'admin_panel_settings' },
+  { role: 'guest', label: 'Login as Guest', icon: 'meeting_room' },
   { role: 'tactical', label: 'Login as DAF Team', icon: 'local_fire_department' },
 ];
 
@@ -753,7 +751,8 @@ async function authenticateRole(role, { user = '', pass = '' }) {
     if (!user.trim()) return { success: false, error: 'First Name is required.' };
     if (!pass.trim()) return { success: false, error: 'Passcode is required.' };
     try {
-      const response = await fetch('/api/v1/auth/guest-login', {
+      // ✅ Uses API_BASE — always points to the real backend, never the frontend domain
+      const response = await fetch(`${API_BASE}/v1/auth/guest-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login_id: user.trim(), password: pass.trim() }),
@@ -762,16 +761,16 @@ async function authenticateRole(role, { user = '', pass = '' }) {
       if (response.ok && data.success) {
         const raw = data.guest || data;
         const normalizedProfile = {
-          name:           raw.name          || raw.full_name  || '',
-          full_name:      raw.full_name     || raw.name       || '',
-          room:           String(raw.room   || raw.roomId     || raw.room_assignment || ''),
-          roomId:         String(raw.room   || raw.roomId     || raw.room_assignment || ''),
-          room_id:        String(raw.room   || raw.roomId     || raw.room_assignment || ''),
-          checkOutDate:   raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+          name: raw.name || raw.full_name || '',
+          full_name: raw.full_name || raw.name || '',
+          room: String(raw.room || raw.roomId || raw.room_assignment || ''),
+          roomId: String(raw.room || raw.roomId || raw.room_assignment || ''),
+          room_id: String(raw.room || raw.roomId || raw.room_assignment || ''),
+          checkOutDate: raw.check_out_date || raw.checkOutDate || raw.check_out || null,
           check_out_date: raw.check_out_date || raw.checkOutDate || raw.check_out || null,
-          check_out:      raw.check_out_date || raw.checkOutDate || raw.check_out || null,
-          nights:         raw.nights        ?? null,
-          id:             raw.id,
+          check_out: raw.check_out_date || raw.checkOutDate || raw.check_out || null,
+          nights: raw.nights ?? null,
+          id: raw.id,
         };
         sessionStorage.setItem('guestProfile', JSON.stringify(normalizedProfile));
         if (data.token || data.access_token) {
@@ -804,7 +803,7 @@ function ParticleCanvas() {
     const particles = [];
 
     function resizeCanvas() {
-      canvas.width  = window.innerWidth;
+      canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
     resizeCanvas();
@@ -814,11 +813,11 @@ function ParticleCanvas() {
 
     for (let i = 0; i < 60; i++) {
       particles.push({
-        x:     randomBetween(0, window.innerWidth),
-        y:     randomBetween(0, window.innerHeight),
-        r:     randomBetween(1, 2.5),
-        dx:    randomBetween(-0.3, 0.3),
-        dy:    randomBetween(-0.6, -0.15),
+        x: randomBetween(0, window.innerWidth),
+        y: randomBetween(0, window.innerHeight),
+        r: randomBetween(1, 2.5),
+        dx: randomBetween(-0.3, 0.3),
+        dy: randomBetween(-0.6, -0.15),
         alpha: randomBetween(0.2, 0.7),
         color: Math.random() > 0.5 ? '#00d2ff' : '#004a77',
       });
@@ -916,11 +915,11 @@ function LoginCard({
   onLogin,
   noFields = false,
 }) {
-  const [user, setUser]               = useState('');
-  const [pass, setPass]               = useState('');
-  const [userErr, setUserErr]         = useState(false);
-  const [passErr, setPassErr]         = useState(false);
-  const [loading, setLoading]         = useState(false);
+  const [user, setUser] = useState('');
+  const [pass, setPass] = useState('');
+  const [userErr, setUserErr] = useState(false);
+  const [passErr, setPassErr] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
 
   const validate = useCallback(() => {
@@ -1044,7 +1043,6 @@ function LoginScreen({ role, onBack, onLogin }) {
 function SystemMapView({ onBack }) {
   return (
     <div className="fg-sysmap-view">
-      {/* Header bar matching the landing page style */}
       <div className="fg-sysmap-header">
         <div className="fg-sysmap-header-left">
           <button className="fg-sysmap-back" onClick={onBack}>
@@ -1068,10 +1066,9 @@ function SystemMapView({ onBack }) {
         </div>
       </div>
 
-      {/* 3D viewport fills remaining height */}
       <div className="fg-sysmap-body">
         <HotelView3D
-          onRoomClick={() => {}}
+          onRoomClick={() => { }}
           evacuationPath={[]}
           viewMode="map"
           focusRoomId={null}
@@ -1080,7 +1077,6 @@ function SystemMapView({ onBack }) {
           alertRooms={[]}
           roomStatuses={{}}
         />
-        {/* Subtle hint overlay */}
         <div className="fg-sysmap-overlay-hint">
           <span className="material-symbols-outlined" style={{ fontSize: 14 }}>info</span>
           Read-only preview — log in as Admin for full control
@@ -1094,12 +1090,12 @@ function SystemMapView({ onBack }) {
    LandingPage
 ─────────────────────────────────────────────────────────────────────────*/
 export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, onDafAuthSuccess }) {
-  const [pendingRole, setPendingRole]             = useState(null);
-  const [pendingRedirect, setPendingRedirect]     = useState(null);
-  const [toast, setToast]                         = useState({ visible: false, message: '', type: 'success' });
-  const [loginMenuOpen, setLoginMenuOpen]         = useState(false);
+  const [pendingRole, setPendingRole] = useState(null);
+  const [pendingRedirect, setPendingRedirect] = useState(null);
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [loginMenuOpen, setLoginMenuOpen] = useState(false);
   const [activeLoginScreen, setActiveLoginScreen] = useState(null);
-  const [showSystemMap, setShowSystemMap]         = useState(false); // ← NEW
+  const [showSystemMap, setShowSystemMap] = useState(false);
 
   const loginDropdownRef = useRef(null);
 
@@ -1110,7 +1106,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
     setTimeout(() => setToast(t => ({ ...t, visible: false })), 3500);
   }, []);
 
-  /* Close LOGIN dropdown when clicking outside */
   useEffect(() => {
     if (!loginMenuOpen) return;
     const handleClickOutside = (e) => {
@@ -1145,7 +1140,7 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
   }, []);
 
   const handleProceed = useCallback(() => {
-    const role     = pendingRole;
+    const role = pendingRole;
     const redirect = pendingRedirect;
     setPendingRole(null);
     setPendingRedirect(null);
@@ -1170,12 +1165,10 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
 
       <ParticleCanvas />
 
-      {/* ══ SYSTEM MAP VIEW ═════════════════════════════════════════════ */}
       {showSystemMap && (
         <SystemMapView onBack={() => setShowSystemMap(false)} />
       )}
 
-      {/* ══ DEDICATED LOGIN SCREEN ══════════════════════════════════════ */}
       {activeLoginScreen && !showSystemMap && (
         <LoginScreen
           role={activeLoginScreen}
@@ -1184,7 +1177,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
         />
       )}
 
-      {/* ══ HEADER ══════════════════════════════════════════════════════ */}
       <header className="fg-header">
         <div className="fg-header-left">
           <span className="fg-logo-word">FIREGUARD</span>
@@ -1192,7 +1184,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
         </div>
         <div className="fg-header-right">
           <nav className="fg-nav">
-            {/* DASHBOARD — clicking goes back to landing if in map view */}
             <button
               className={`fg-nav-link${!showSystemMap ? ' active' : ''}`}
               onClick={() => { setShowSystemMap(false); setActiveLoginScreen(null); }}
@@ -1200,7 +1191,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
               DASHBOARD
             </button>
 
-            {/* SYSTEM MAP — toggles the 3D hotel view */}
             <button
               className={`fg-nav-link${showSystemMap ? ' active' : ''}`}
               onClick={() => { setShowSystemMap(true); setActiveLoginScreen(null); }}
@@ -1208,7 +1198,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
               SYSTEM MAP
             </button>
 
-            {/* ── LOGIN dropdown ── */}
             <div className="fg-login-dropdown" ref={loginDropdownRef}>
               <button
                 className={`fg-login-dropdown-btn${loginMenuOpen ? ' open' : ''}`}
@@ -1242,11 +1231,9 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
         </div>
       </header>
 
-      {/* ══ MAIN (hidden when system map is shown) ══════════════════════ */}
       {!showSystemMap && (
         <>
           <main className="fg-main">
-            {/* ── Hero ── */}
             <section className="fg-hero hero-gradient reveal visible">
               <div className="fg-hero-inner">
                 <div>
@@ -1266,7 +1253,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
               </div>
             </section>
 
-            {/* ── Features ── */}
             <section className="fg-features">
               <div className="fg-section-header reveal visible">
                 <div className="fg-section-header-left">
@@ -1277,7 +1263,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
               </div>
 
               <div className="fg-feature-grid">
-                {/* 3D Hotel Map card — clicking it also opens the system map */}
                 <div
                   className="glass-card fg-feat-card reveal visible"
                   style={{ cursor: 'pointer' }}
@@ -1349,7 +1334,6 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
             </section>
           </main>
 
-          {/* ══ FOOTER ══════════════════════════════════════════════════ */}
           <footer className="fg-footer">
             <div className="fg-footer-brand">
               <div className="fg-footer-brand-inner">
@@ -1366,14 +1350,12 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
         </>
       )}
 
-      {/* ══ SUCCESS MODAL ═══════════════════════════════════════════════ */}
       <SuccessModal
         role={pendingRole}
         onClose={handleModalClose}
         onProceed={handleProceed}
       />
 
-      {/* ══ TOAST ═══════════════════════════════════════════════════════ */}
       <Toast message={toast.message} type={toast.type} visible={toast.visible} />
     </div>
   );
