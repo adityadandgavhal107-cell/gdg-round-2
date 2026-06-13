@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import HotelView3D from '../views/HotelView3D';// adjust import path as needed
 
 /* ─────────────────────────────────────────────────────────────────────────
    LandingPage.jsx  —  fixed authentication & navigation
@@ -174,6 +175,7 @@ const STYLES = `
     font-size: 14px; letter-spacing: 0.2em;
     text-decoration: none; color: rgba(196,199,197,1); font-weight: 500;
     transition: color 0.2s ease; padding: 4px 8px;
+    background: transparent; border: none; cursor: pointer;
   }
   .fg-nav-link:hover { color: #00d2ff; }
   .fg-nav-link.active {
@@ -290,6 +292,75 @@ const STYLES = `
     grid-template-columns: 1fr;
     max-width: 480px;
     width: 100%;
+  }
+
+  /* ── System Map View ── */
+  .fg-sysmap-view {
+    position: fixed; inset: 0; z-index: 80;
+    display: flex; flex-direction: column;
+    background-color: #0a0a0f;
+    animation: fade-in-up 0.4s cubic-bezier(0.4,0,0.2,1) forwards;
+  }
+  .fg-sysmap-header {
+    position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 80px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(0,210,255,0.12);
+    background: rgba(10,10,15,0.95);
+    backdrop-filter: blur(24px);
+  }
+  .fg-sysmap-header-left { display: flex; align-items: center; gap: 1.5rem; }
+  .fg-sysmap-back {
+    display: flex; align-items: center; gap: 8px;
+    background: transparent; border: 1px solid rgba(255,255,255,0.10);
+    color: rgba(196,199,197,1);
+    padding: 10px 20px; border-radius: 9999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+    cursor: pointer; transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .fg-sysmap-back:hover { border-color: #00d2ff; color: #00d2ff; }
+  .fg-sysmap-back .material-symbols-outlined { font-size: 18px; }
+  .fg-sysmap-title {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; letter-spacing: 0.25em; font-weight: 700;
+    color: rgba(180,190,255,0.8); text-transform: uppercase;
+  }
+  .fg-sysmap-title-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #00d2ff;
+    box-shadow: 0 0 8px #00d2ff;
+    animation: animate-pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite;
+  }
+  .fg-sysmap-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,210,255,0.08);
+    border: 1px solid rgba(0,210,255,0.18);
+    border-radius: 9999px; padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.2em; font-weight: 600;
+    color: rgba(0,210,255,0.85);
+  }
+  .fg-sysmap-body {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .fg-sysmap-overlay-hint {
+    position: absolute; bottom: 80px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(8,8,24,0.75);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(120,140,255,0.18);
+    border-radius: 9999px;
+    padding: 8px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    color: rgba(180,190,255,0.65);
+    pointer-events: none; z-index: 5;
+    animation: fade-in-up 0.6s 0.3s cubic-bezier(0.4,0,0.2,1) both;
   }
 
   .fg-main {
@@ -618,7 +689,7 @@ const STYLES = `
 const ROLE_CONFIG = {
   admin:    { label: 'COMMAND ADMIN',   body: 'Full system override access initializing.' },
   guest:    { label: 'HOTEL GUEST HUB', body: 'Personal safety portal loading for your room.' },
-  tactical: { label: 'DAF TACTICAL',    body: 'Secure uplink to responder network establishing.' },
+  tactical: { label: 'DAF TACTICAL',    body: 'Identity verified. You will now be prompted for your team OTP to complete authentication.' },
 };
 
 /* ── LoginCard configs, keyed by role ── */
@@ -640,8 +711,8 @@ const LOGIN_CARD_CONFIGS = {
     iconColor: '#00d2ff',
     title: 'Hotel Guest',
     desc: 'Safety guidance and personal evacuation assist.',
-    userPlaceholder: 'FIRST NAME',        // matches old portal label
-    passPlaceholder: 'PASSCODE (First 3 letters + Room #)',  // matches old portal hint
+    userPlaceholder: 'FIRST NAME',
+    passPlaceholder: 'PASSCODE (First 3 letters + Room #)',
     btnLabel: 'Enter Safety Hub',
     cardClass: 'guest',
     barClass: 'guest',
@@ -651,12 +722,11 @@ const LOGIN_CARD_CONFIGS = {
     icon: 'local_fire_department',
     iconColor: '#00d2ff',
     title: 'DAF Tactical',
-    desc: 'Access the DAF responder network.',
+    desc: 'Access the DAF responder network. You will be prompted for your team OTP.',
     btnLabel: 'Access DAF Portal',
     cardClass: 'tactical',
     barClass: 'tactical',
     btnClass: 'tactical',
-    // No fields — clicking the button navigates directly (mirrors old portal)
     noFields: true,
   },
 };
@@ -670,44 +740,26 @@ const LOGIN_MENU_ITEMS = [
 
 /* ─────────────────────────────────────────────────────────────────────────
    authenticateRole
-   Mirrors ALL auth logic from the old LoginPortal.jsx exactly.
-   Returns:
-     { success: true }                         — proceed to success modal
-     { success: false, error: string }         — show inline error
-     { success: false, redirect: string }      — hard-navigate immediately (DAF)
-───────────────────────────────────────────────────────────────────────── */
+─────────────────────────────────────────────────────────────────────────*/
 async function authenticateRole(role, { user = '', pass = '' }) {
-  /* ── Admin: hardcoded credentials (from old portal) ── */
   if (role === 'admin') {
     if (!user.trim()) return { success: false, error: 'User ID is required.' };
     if (!pass.trim()) return { success: false, error: 'Password is required.' };
-
-    if (user === 'admin' && pass === 'admin123') {
-      return { success: true };
-    }
+    if (user === 'admin' && pass === 'admin123') return { success: true };
     return { success: false, error: 'Invalid Administrative Credentials.' };
   }
 
-  /* ── Guest: FastAPI + SQLAlchemy (from old portal) ── */
   if (role === 'guest') {
     if (!user.trim()) return { success: false, error: 'First Name is required.' };
     if (!pass.trim()) return { success: false, error: 'Passcode is required.' };
-
     try {
       const response = await fetch('/api/v1/auth/guest-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          login_id: user.trim(),
-          password:  pass.trim(),
-        }),
+        body: JSON.stringify({ login_id: user.trim(), password: pass.trim() }),
       });
-
       const data = await response.json();
-
       if (response.ok && data.success) {
-        /* Normalize profile — store both snake_case and camelCase keys
-           so GuestApp.jsx and guest.html both find what they need. */
         const raw = data.guest || data;
         const normalizedProfile = {
           name:           raw.name          || raw.full_name  || '',
@@ -722,28 +774,20 @@ async function authenticateRole(role, { user = '', pass = '' }) {
           id:             raw.id,
         };
         sessionStorage.setItem('guestProfile', JSON.stringify(normalizedProfile));
-
         if (data.token || data.access_token) {
           sessionStorage.setItem('guestToken', data.token || data.access_token);
         }
-
-        /* Signal caller to navigate to /guest.html after modal */
         return { success: true, redirect: '/guest.html' };
       }
-
-      return {
-        success: false,
-        error: data.message || 'Authentication failed. Verify your name and room configurations.',
-      };
+      return { success: false, error: data.message || 'Authentication failed. Verify your name and room configurations.' };
     } catch (err) {
       console.error('FastAPI Connection Timeout:', err);
       return { success: false, error: 'Unable to reach the centralized verification matrix.' };
     }
   }
 
-  /* ── DAF Tactical: direct navigation, no form (from old portal) ── */
   if (role === 'tactical') {
-    return { success: false, redirect: '/daf.html' };
+    return { success: true, redirect: '/daf.html' };
   }
 
   return { success: false, error: 'Unknown role.' };
@@ -752,7 +796,6 @@ async function authenticateRole(role, { user = '', pass = '' }) {
 /* ── Particle Canvas ─────────────────────────────────────────────────── */
 function ParticleCanvas() {
   const canvasRef = useRef(null);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -812,11 +855,7 @@ function ParticleCanvas() {
 function useReveal() {
   useEffect(() => {
     const observer = new IntersectionObserver(
-      entries => {
-        entries.forEach(e => {
-          if (e.isIntersecting) e.target.classList.add('visible');
-        });
-      },
+      entries => { entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }); },
       { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
     );
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
@@ -847,10 +886,7 @@ function SuccessModal({ role, onClose, onProceed }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto',
           }}>
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 48, color: '#00d2ff', fontVariationSettings: "'FILL' 1" }}
-            >
+            <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#00d2ff', fontVariationSettings: "'FILL' 1" }}>
               verified
             </span>
           </div>
@@ -871,20 +907,14 @@ function SuccessModal({ role, onClose, onProceed }) {
 
 /* ─────────────────────────────────────────────────────────────────────────
    LoginCard
-   Handles its own loading / error state.
-   Calls onLogin(role, { user, pass }) → Promise<{ success, error?, redirect? }>
-   • success + no redirect  → parent opens success modal (admin)
-   • success + redirect     → parent stores redirect then opens modal (guest)
-   • !success + redirect    → parent navigates immediately (DAF)
-   • !success + error       → shown inline, modal never opens
-───────────────────────────────────────────────────────────────────────── */
+─────────────────────────────────────────────────────────────────────────*/
 function LoginCard({
   role, icon, iconClass, iconColor,
   title, desc, userPlaceholder, passPlaceholder,
   btnLabel, cardClass, barClass, btnClass,
   transitionDelay,
   onLogin,
-  noFields = false,   // DAF card: button only, no inputs
+  noFields = false,
 }) {
   const [user, setUser]               = useState('');
   const [pass, setPass]               = useState('');
@@ -907,10 +937,7 @@ function LoginCard({
     setLoading(true);
     const result = await onLogin(role, { user, pass });
     setLoading(false);
-    if (!result.success && result.error) {
-      setServerError(result.error);
-    }
-    // Navigation / modal handled by parent via onLogin
+    if (!result.success && result.error) setServerError(result.error);
   }, [validate, onLogin, role, user, pass]);
 
   const handleKey = useCallback((e) => {
@@ -924,8 +951,6 @@ function LoginCard({
     >
       <div className={`fg-login-bar ${barClass}`} />
       <div className="fg-login-body">
-
-        {/* Top */}
         <div className="fg-login-card-top">
           <span
             className={`material-symbols-outlined fg-login-card-icon${iconClass ? ' ' + iconClass : ''}`}
@@ -937,9 +962,7 @@ function LoginCard({
           <p className="fg-login-desc">{desc}</p>
         </div>
 
-        {/* Fields */}
         <div className="fg-login-fields">
-
           {!noFields && (
             <>
               <div className="fg-login-field">
@@ -952,9 +975,7 @@ function LoginCard({
                   onChange={e => { setUser(e.target.value); setUserErr(false); setServerError(''); }}
                   onKeyDown={handleKey}
                 />
-                <p className={`field-error${userErr ? ' show' : ''}`}>
-                  {userPlaceholder} is required.
-                </p>
+                <p className={`field-error${userErr ? ' show' : ''}`}>{userPlaceholder} is required.</p>
               </div>
 
               {passPlaceholder && (
@@ -968,36 +989,21 @@ function LoginCard({
                     onChange={e => { setPass(e.target.value); setPassErr(false); setServerError(''); }}
                     onKeyDown={handleKey}
                   />
-                  <p className={`field-error${passErr ? ' show' : ''}`}>
-                    Password is required.
-                  </p>
+                  <p className={`field-error${passErr ? ' show' : ''}`}>Password is required.</p>
                 </div>
               )}
             </>
           )}
 
-          {/* ── Server / auth error ── */}
           {serverError && (
-            <p className="fg-server-error">
-              <span>⚠</span> {serverError}
-            </p>
+            <p className="fg-server-error"><span>⚠</span> {serverError}</p>
           )}
 
-          <button
-            className={`fg-btn ${btnClass}`}
-            onClick={handleSubmit}
-            disabled={loading}
-          >
+          <button className={`fg-btn ${btnClass}`} onClick={handleSubmit} disabled={loading}>
             {loading ? (
-              <>
-                <span className="spinner" />
-                <span>AUTHENTICATING…</span>
-              </>
-            ) : (
-              btnLabel
-            )}
+              <><span className="spinner" /><span>AUTHENTICATING…</span></>
+            ) : btnLabel}
           </button>
-
         </div>
       </div>
     </div>
@@ -1006,7 +1012,7 @@ function LoginCard({
 
 /* ─────────────────────────────────────────────────────────────────────────
    LoginScreen — full-screen dedicated view for a single role
-───────────────────────────────────────────────────────────────────────── */
+─────────────────────────────────────────────────────────────────────────*/
 function LoginScreen({ role, onBack, onLogin }) {
   const cfg = LOGIN_CARD_CONFIGS[role];
   if (!cfg) return null;
@@ -1023,7 +1029,6 @@ function LoginScreen({ role, onBack, onLogin }) {
           BACK TO DASHBOARD
         </button>
       </div>
-
       <div className="fg-login-screen-body">
         <div className="fg-login-grid">
           <LoginCard role={role} {...cfg} onLogin={onLogin} />
@@ -1034,14 +1039,67 @@ function LoginScreen({ role, onBack, onLogin }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   SystemMapView — full-screen 3D hotel map embedded in the landing page
+─────────────────────────────────────────────────────────────────────────*/
+function SystemMapView({ onBack }) {
+  return (
+    <div className="fg-sysmap-view">
+      {/* Header bar matching the landing page style */}
+      <div className="fg-sysmap-header">
+        <div className="fg-sysmap-header-left">
+          <button className="fg-sysmap-back" onClick={onBack}>
+            <span className="material-symbols-outlined">arrow_back</span>
+            BACK TO DASHBOARD
+          </button>
+          <div className="fg-sysmap-title">
+            <div className="fg-sysmap-title-dot" />
+            SYSTEM MAP — 3D HOTEL VIEW
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="fg-sysmap-badge">
+            <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#00d2ff' }}>3d_rotation</span>
+            LIVE · READ-ONLY
+          </div>
+          <div className="fg-header-left" style={{ borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: '1.5rem' }}>
+            <span className="fg-logo-word" style={{ fontSize: 15 }}>FIREGUARD</span>
+            <span className="fg-logo-sub">HMS</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3D viewport fills remaining height */}
+      <div className="fg-sysmap-body">
+        <HotelView3D
+          onRoomClick={() => {}}
+          evacuationPath={[]}
+          viewMode="map"
+          focusRoomId={null}
+          isRescueMode={false}
+          isGuest={false}
+          alertRooms={[]}
+          roomStatuses={{}}
+        />
+        {/* Subtle hint overlay */}
+        <div className="fg-sysmap-overlay-hint">
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>info</span>
+          Read-only preview — log in as Admin for full control
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    LandingPage
-───────────────────────────────────────────────────────────────────────── */
+─────────────────────────────────────────────────────────────────────────*/
 export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, onDafAuthSuccess }) {
   const [pendingRole, setPendingRole]             = useState(null);
-  const [pendingRedirect, setPendingRedirect]     = useState(null); // set for guest
+  const [pendingRedirect, setPendingRedirect]     = useState(null);
   const [toast, setToast]                         = useState({ visible: false, message: '', type: 'success' });
   const [loginMenuOpen, setLoginMenuOpen]         = useState(false);
   const [activeLoginScreen, setActiveLoginScreen] = useState(null);
+  const [showSystemMap, setShowSystemMap]         = useState(false); // ← NEW
 
   const loginDropdownRef = useRef(null);
 
@@ -1073,32 +1131,10 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
     setActiveLoginScreen(null);
   }, []);
 
-  /* ─────────────────────────────────────────────────────────────────────
-     handleLogin — called by LoginCard with (role, { user, pass })
-     Runs authenticateRole() and routes the result:
-       • DAF redirect  → navigate immediately, no modal
-       • Guest success → store redirect target, open success modal
-       • Admin success → open success modal (onAdminAuthSuccess called on Proceed)
-       • Failure       → return { error } so LoginCard shows it inline
-  ───────────────────────────────────────────────────────────────────── */
   const handleLogin = useCallback(async (role, credentials = {}) => {
     const result = await authenticateRole(role, credentials);
-
-    /* DAF: hard-navigate right away (mirrors old portal handleDafDirectNavigation) */
-    if (!result.success && result.redirect) {
-      window.location.href = result.redirect;
-      return { success: false }; // card stays disabled while navigating
-    }
-
-    /* Failure with inline error */
-    if (!result.success) {
-      return { success: false, error: result.error };
-    }
-
-    /* Success: store any redirect URL, then open the success modal */
-    if (result.redirect) {
-      setPendingRedirect(result.redirect);
-    }
+    if (!result.success) return { success: false, error: result.error };
+    if (result.redirect) setPendingRedirect(result.redirect);
     setPendingRole(role);
     return { success: true };
   }, []);
@@ -1108,37 +1144,25 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
     setPendingRedirect(null);
   }, []);
 
-  /* ─────────────────────────────────────────────────────────────────────
-     handleProceed — user clicked "Proceed" in the success modal
-     Mirrors the navigation decisions from the old LoginPortal exactly:
-       admin  → onAdminAuthSuccess()  (React navigation)
-       guest  → window.location.href = '/guest.html'
-       (DAF already navigated before the modal opens)
-  ───────────────────────────────────────────────────────────────────── */
   const handleProceed = useCallback(() => {
     const role     = pendingRole;
     const redirect = pendingRedirect;
-
     setPendingRole(null);
     setPendingRedirect(null);
     setActiveLoginScreen(null);
-
     showToast('SESSION ACTIVE — ENVIRONMENT LOADING', 'success');
-
     setTimeout(() => {
       if (redirect) {
-        /* Guest: hard-navigate so the server-rendered page loads fresh */
         window.location.href = redirect;
       } else if (role === 'admin') {
         onAdminAuthSuccess?.();
       } else if (role === 'guest') {
-        /* Fallback if redirect was somehow not set */
         onGuestAuthSuccess?.();
       } else if (role === 'tactical') {
-        onDafAuthSuccess?.();
+        window.location.href = '/daf.html';
       }
     }, 600);
-  }, [pendingRole, pendingRedirect, onAdminAuthSuccess, onGuestAuthSuccess, onDafAuthSuccess, showToast]);
+  }, [pendingRole, pendingRedirect, onAdminAuthSuccess, onGuestAuthSuccess, showToast]);
 
   return (
     <div className="fg-root">
@@ -1146,8 +1170,13 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
 
       <ParticleCanvas />
 
+      {/* ══ SYSTEM MAP VIEW ═════════════════════════════════════════════ */}
+      {showSystemMap && (
+        <SystemMapView onBack={() => setShowSystemMap(false)} />
+      )}
+
       {/* ══ DEDICATED LOGIN SCREEN ══════════════════════════════════════ */}
-      {activeLoginScreen && (
+      {activeLoginScreen && !showSystemMap && (
         <LoginScreen
           role={activeLoginScreen}
           onBack={handleBackFromLoginScreen}
@@ -1163,8 +1192,21 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
         </div>
         <div className="fg-header-right">
           <nav className="fg-nav">
-            <a className="fg-nav-link active" href="#">DASHBOARD</a>
-            <a className="fg-nav-link" href="#">SYSTEM MAP</a>
+            {/* DASHBOARD — clicking goes back to landing if in map view */}
+            <button
+              className={`fg-nav-link${!showSystemMap ? ' active' : ''}`}
+              onClick={() => { setShowSystemMap(false); setActiveLoginScreen(null); }}
+            >
+              DASHBOARD
+            </button>
+
+            {/* SYSTEM MAP — toggles the 3D hotel view */}
+            <button
+              className={`fg-nav-link${showSystemMap ? ' active' : ''}`}
+              onClick={() => { setShowSystemMap(true); setActiveLoginScreen(null); }}
+            >
+              SYSTEM MAP
+            </button>
 
             {/* ── LOGIN dropdown ── */}
             <div className="fg-login-dropdown" ref={loginDropdownRef}>
@@ -1192,6 +1234,7 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
               </div>
             </div>
           </nav>
+
           <div className="fg-status-pill glow-accent">
             <div className="fg-status-dot" />
             <span className="fg-status-label">SYSTEM LIVE</span>
@@ -1199,122 +1242,129 @@ export default function LandingPage({ onAdminAuthSuccess, onGuestAuthSuccess, on
         </div>
       </header>
 
-      {/* ══ MAIN ════════════════════════════════════════════════════════ */}
-      <main className="fg-main">
-
-        {/* ── Hero ── */}
-        <section className="fg-hero hero-gradient reveal visible">
-          <div className="fg-hero-inner">
-            <div>
-              <div className="fg-hero-badge">
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>security</span>
-                V4.2.0 SECURE TERMINAL
+      {/* ══ MAIN (hidden when system map is shown) ══════════════════════ */}
+      {!showSystemMap && (
+        <>
+          <main className="fg-main">
+            {/* ── Hero ── */}
+            <section className="fg-hero hero-gradient reveal visible">
+              <div className="fg-hero-inner">
+                <div>
+                  <div className="fg-hero-badge">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>security</span>
+                    V4.2.0 SECURE TERMINAL
+                  </div>
+                </div>
+                <h1>
+                  Intelligent Emergency Infrastructure &amp;&nbsp;
+                  <span className="text-primary">Real-Time Life Safety</span> Management
+                </h1>
+                <p>
+                  Next-generation command and control featuring AI-assisted detection, high-fidelity 3D building
+                  mapping, and autonomous evacuation routing for high-stakes environments.
+                </p>
               </div>
-            </div>
-            <h1>
-              Intelligent Emergency Infrastructure &amp;&nbsp;
-              <span className="text-primary">Real-Time Life Safety</span> Management
-            </h1>
-            <p>
-              Next-generation command and control featuring AI-assisted detection, high-fidelity 3D building
-              mapping, and autonomous evacuation routing for high-stakes environments.
-            </p>
-          </div>
-        </section>
+            </section>
 
-        {/* ── Features ── */}
-        <section className="fg-features">
-          <div className="fg-section-header reveal visible">
-            <div className="fg-section-header-left">
-              <h2>Integrated Protocol Modules</h2>
-              <p>Real-time telemetry and management subsystems.</p>
-            </div>
-            <a className="fg-view-all" href="#">VIEW ALL SERVICES</a>
-          </div>
-
-          <div className="fg-feature-grid">
-            <div className="glass-card fg-feat-card reveal visible">
-              <div className="fg-feat-icon-wrap">
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>3d_rotation</span>
+            {/* ── Features ── */}
+            <section className="fg-features">
+              <div className="fg-section-header reveal visible">
+                <div className="fg-section-header-left">
+                  <h2>Integrated Protocol Modules</h2>
+                  <p>Real-time telemetry and management subsystems.</p>
+                </div>
+                <a className="fg-view-all" href="#">VIEW ALL SERVICES</a>
               </div>
-              <h3>3D Hotel Map</h3>
-              <p>High-fidelity spatial rendering of all structures and utilities.</p>
-            </div>
 
-            <div className="glass-card fg-feat-card border-l-accent reveal visible">
-              <div className="fg-feat-icon-wrap" style={{ background: 'rgba(0,210,255,0.10)', border: '1px solid rgba(0,210,255,0.20)' }}>
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>psychology</span>
+              <div className="fg-feature-grid">
+                {/* 3D Hotel Map card — clicking it also opens the system map */}
+                <div
+                  className="glass-card fg-feat-card reveal visible"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setShowSystemMap(true)}
+                >
+                  <div className="fg-feat-icon-wrap">
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>3d_rotation</span>
+                  </div>
+                  <h3>3D Hotel Map</h3>
+                  <p>High-fidelity spatial rendering of all structures and utilities.</p>
+                </div>
+
+                <div className="glass-card fg-feat-card reveal visible">
+                  <div className="fg-feat-icon-wrap" style={{ background: 'rgba(0,210,255,0.10)', border: '1px solid rgba(0,210,255,0.20)' }}>
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>psychology</span>
+                  </div>
+                  <h3>AI Detection</h3>
+                  <p>Neural networks monitoring visual and thermal sensors for anomalies.</p>
+                </div>
+
+                <div className="glass-card fg-feat-card reveal visible">
+                  <div className="fg-feat-icon-wrap">
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>alt_route</span>
+                  </div>
+                  <h3>Smart Routing</h3>
+                  <p>Dynamic exit path optimization based on hazard density.</p>
+                </div>
+
+                <div className="glass-card fg-feat-card reveal visible">
+                  <div className="fg-feat-icon-wrap">
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>translate</span>
+                  </div>
+                  <h3>Polyglot Voice</h3>
+                  <p>Automated PA system supporting 48 languages for evacuation.</p>
+                </div>
+
+                <div className="glass-card fg-feat-card reveal visible">
+                  <div className="fg-feat-icon-wrap" style={{ background: 'rgba(0,210,255,0.10)', border: '1px solid rgba(0,210,255,0.20)' }}>
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>videocam</span>
+                  </div>
+                  <h3>WebRTC Feed</h3>
+                  <p>Ultra-low latency tactical video streaming for responders.</p>
+                </div>
+
+                <div className="glass-card fg-feat-card reveal visible">
+                  <div className="fg-feat-icon-wrap">
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>local_fire_department</span>
+                  </div>
+                  <h3>DAF Tactical</h3>
+                  <p>Deployable autonomous firefighting units coordination.</p>
+                </div>
+
+                <div className="glass-card fg-feat-card reveal visible">
+                  <div className="fg-feat-icon-wrap">
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>sensors</span>
+                  </div>
+                  <h3>IoT Nodes</h3>
+                  <p>Distributed sensor mesh monitoring pressure and smoke.</p>
+                </div>
+
+                <div className="glass-card fg-feat-card reveal visible">
+                  <div className="fg-feat-icon-wrap">
+                    <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>groups</span>
+                  </div>
+                  <h3>Occupancy</h3>
+                  <p>Real-time heatmaps for precise search and rescue operations.</p>
+                </div>
               </div>
-              <h3>AI Detection</h3>
-              <p>Neural networks monitoring visual and thermal sensors for anomalies.</p>
-            </div>
+            </section>
+          </main>
 
-            <div className="glass-card fg-feat-card reveal visible">
-              <div className="fg-feat-icon-wrap">
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>alt_route</span>
+          {/* ══ FOOTER ══════════════════════════════════════════════════ */}
+          <footer className="fg-footer">
+            <div className="fg-footer-brand">
+              <div className="fg-footer-brand-inner">
+                <span className="fg-footer-name">FIREGUARD HMS</span>
               </div>
-              <h3>Smart Routing</h3>
-              <p>Dynamic exit path optimization based on hazard density.</p>
+              <span className="fg-footer-copy">© 2024 | SECURE TERMINAL v4.2.0</span>
             </div>
-
-            <div className="glass-card fg-feat-card reveal visible">
-              <div className="fg-feat-icon-wrap">
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>translate</span>
-              </div>
-              <h3>Polyglot Voice</h3>
-              <p>Automated PA system supporting 48 languages for evacuation.</p>
+            <div className="fg-footer-links">
+              <a className="fg-footer-link" href="#">SECURITY PROTOCOLS</a>
+              <a className="fg-footer-link" href="#">SYSTEM STATUS</a>
+              <a className="fg-footer-link" href="#">HELP DESK</a>
             </div>
-
-            <div className="glass-card fg-feat-card reveal visible">
-              <div className="fg-feat-icon-wrap" style={{ background: 'rgba(0,210,255,0.10)', border: '1px solid rgba(0,210,255,0.20)' }}>
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>videocam</span>
-              </div>
-              <h3>WebRTC Feed</h3>
-              <p>Ultra-low latency tactical video streaming for responders.</p>
-            </div>
-
-            <div className="glass-card fg-feat-card reveal visible">
-              <div className="fg-feat-icon-wrap">
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>local_fire_department</span>
-              </div>
-              <h3>DAF Tactical</h3>
-              <p>Deployable autonomous firefighting units coordination.</p>
-            </div>
-
-            <div className="glass-card fg-feat-card reveal visible">
-              <div className="fg-feat-icon-wrap">
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>sensors</span>
-              </div>
-              <h3>IoT Nodes</h3>
-              <p>Distributed sensor mesh monitoring pressure and smoke.</p>
-            </div>
-
-            <div className="glass-card fg-feat-card reveal visible">
-              <div className="fg-feat-icon-wrap">
-                <span className="material-symbols-outlined fg-feat-icon" style={{ color: '#00d2ff' }}>groups</span>
-              </div>
-              <h3>Occupancy</h3>
-              <p>Real-time heatmaps for precise search and rescue operations.</p>
-            </div>
-          </div>
-        </section>
-
-      </main>
-
-      {/* ══ FOOTER ══════════════════════════════════════════════════════ */}
-      <footer className="fg-footer">
-        <div className="fg-footer-brand">
-          <div className="fg-footer-brand-inner">
-            <span className="fg-footer-name">FIREGUARD HMS</span>
-          </div>
-          <span className="fg-footer-copy">© 2024 | SECURE TERMINAL v4.2.0</span>
-        </div>
-        <div className="fg-footer-links">
-          <a className="fg-footer-link" href="#">SECURITY PROTOCOLS</a>
-          <a className="fg-footer-link" href="#">SYSTEM STATUS</a>
-          <a className="fg-footer-link" href="#">HELP DESK</a>
-        </div>
-      </footer>
+          </footer>
+        </>
+      )}
 
       {/* ══ SUCCESS MODAL ═══════════════════════════════════════════════ */}
       <SuccessModal

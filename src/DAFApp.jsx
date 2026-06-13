@@ -19,6 +19,9 @@ import config from './core/config.js';
        that was only rendered when activeIncidents.length > 0 — it now stays
        visible until every incident has been cleared.
      • No <form> tags — button uses onClick, not onSubmit.
+     • AUTH FIX: daf_team auth token stored in sessionStorage (tab-scoped,
+       auto-cleared on tab/window close) instead of localStorage.
+       Incident data remains in localStorage so it survives team handoffs.
 ───────────────────────────────────────────────────────────────────────── */
 
 const DAF_INCIDENTS_KEY = 'daf_active_incidents';
@@ -375,7 +378,9 @@ function OTPLoginScreen({ onAuthenticated }) {
         setError('INVALID AUTHORIZATION CODE — Contact Command Admin.');
         return;
       }
-      localStorage.setItem('daf_team', matched);
+      // AUTH FIX: use sessionStorage so auth is cleared when tab closes
+      sessionStorage.setItem('daf_team', matched);
+      localStorage.removeItem('daf_team'); // evict any legacy persistent token
       onAuthenticated(matched);
     }, 600);
   }, [otp, onAuthenticated]);
@@ -556,10 +561,6 @@ function PIPCamera({ selectedIncident, liveStreams }) {
 }
 
 /* ── Persistent Alert Banner ─────────────────────────────────────────── */
-/*  Unlike the original AlertBanner (which returned null when empty), this
-    one is ALWAYS rendered but collapses gracefully when there are no active
-    incidents. This prevents layout jump and makes it clear to the DAF
-    operator that the system is watching.                                   */
 function PersistentAlertBanner({ incidents }) {
   if (!incidents || incidents.length === 0) {
     return (
@@ -655,9 +656,10 @@ export default function DAFApp() {
 
   const socketRef = useRef(null);
 
-  /* ── Restore session ─────────────────────────────────────────────── */
+  /* ── Restore session (sessionStorage only — cleared on tab close) ── */
   useEffect(() => {
-    const savedTeam = localStorage.getItem('daf_team');
+    localStorage.removeItem('daf_team'); // evict any legacy persistent token on every mount
+    const savedTeam = sessionStorage.getItem('daf_team');
     if (savedTeam) { setTeamName(savedTeam); setIsAuthenticated(true); }
   }, []);
 
@@ -718,7 +720,7 @@ export default function DAFApp() {
         const exists = prev.find(i => i.roomId === roomId && i.type === alert.type);
         if (exists) return prev;
         const next = [newInc, ...prev];
-        saveIncidents(next);            // ← persist immediately
+        saveIncidents(next);
         bus.emit('room:statusChange', { roomId, status: alert.type });
         return next;
       });
@@ -729,13 +731,10 @@ export default function DAFApp() {
     socket.on('detection:alert', handleAlert);
     socket.on('alert:escalate',  handleAlert);
 
-    // Server-side or Admin-side resolution
     socket.on('alert:resolved', ({ roomId }) => {
       removeIncident(String(roomId));
     });
 
-    // Also listen to the local event bus (covers Admin resolving via AlertPanel
-    // in the same browser tab as a DAF operator — unlikely but safe)
     const unsubBusResolved = bus.on('alert:resolved', ({ roomId }) => {
       if (roomId) removeIncident(String(roomId));
     });
@@ -762,12 +761,12 @@ export default function DAFApp() {
     setTimeout(() => {
       setActiveIncidents(prev => {
         const next = prev.filter(i => i.roomId !== roomId);
-        saveIncidents(next);            // ← persist the updated list
+        saveIncidents(next);
         return next;
       });
       setSelectedIncident(prev => prev?.roomId !== roomId ? prev : null);
       setClearingRooms(prev => { const n = { ...prev }; delete n[roomId]; return n; });
-      removePersistedIncident(roomId); // belt-and-suspenders cleanup
+      removePersistedIncident(roomId);
       bus.emit('room:statusChange', { roomId, status: 'clear' });
     }, 400);
   }
@@ -818,9 +817,10 @@ export default function DAFApp() {
 
   /* ── Logout ──────────────────────────────────────────────────────── */
   const handleLogout = () => {
-    localStorage.removeItem('daf_team');
-    // NOTE: we intentionally do NOT clear DAF_INCIDENTS_KEY on logout —
-    // the next team member who logs in should see the same unresolved alerts.
+    sessionStorage.removeItem('daf_team'); // primary auth token (tab-scoped)
+    localStorage.removeItem('daf_team');   // belt-and-suspenders: evict legacy key
+    // NOTE: DAF_INCIDENTS_KEY intentionally kept — unresolved alerts must
+    // survive team handoffs and re-logins within the same incident window.
     setIsAuthenticated(false);
     setTeamName('');
     setActiveIncidents([]);
@@ -953,8 +953,6 @@ export default function DAFApp() {
                   </span>
                 )}
               </span>
-              {/* ⚠️  NO "Clear All" button on DAF side either — each incident
-                   must be individually confirmed safe before clearing.        */}
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1003,7 +1001,6 @@ export default function DAFApp() {
                       SENSOR: {inc.type.toUpperCase()} / {Math.round((inc.confidence || 0.85) * 100)}% CONF
                     </div>
 
-                    {/* Persist timestamp so DAF always knows when this was first triggered */}
                     {inc._savedAt && (
                       <div style={{ fontSize: 10, color: 'rgba(255,80,80,0.45)', marginTop: 4, fontFamily: 'JetBrains Mono' }}>
                         LOGGED {new Date(inc._savedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}

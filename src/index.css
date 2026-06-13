@@ -532,9 +532,13 @@ html, body {
 }
 
 .view-title span {
-  background: linear-gradient(135deg, var(--fire-red), var(--smoke-orange));
+  background: linear-gradient(135deg, #93c5fd, #a78bfa);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  
+  /* Applies a crisp, dual-layered neon glow directly to the gradient text shapes */
+  filter: drop-shadow(0 0 8px rgba(147, 197, 253, 0.5)) 
+          drop-shadow(0 0 20px rgba(167, 139, 250, 0.3));
 }
 
 .checkin-form {
@@ -603,7 +607,8 @@ html, body {
 
 .btn-primary {
   padding: 10px 24px;
-  background: linear-gradient(135deg, var(--fire-red), var(--smoke-orange));
+  /* Fixed gradient syntax by adding a second color stop for a smooth transition */
+  background: linear-gradient(135deg, #93c5fd, #60a5fa);
   border: none;
   border-radius: var(--radius-md);
   color: #fff;
@@ -611,9 +616,17 @@ html, body {
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
+  
+  /* Adds a soft, subtle glow using the button's primary color theme */
+  box-shadow: 0 0 12px rgba(147, 197, 253, 0.4);
 }
 
-.btn-primary:hover { opacity: 0.85; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,45,45,0.3); }
+/* Hover effect to make the glow feel dynamic and responsive */
+.btn-primary:hover {
+  background: linear-gradient(135deg, #a5d1ff, #3b82f6);
+  box-shadow: 0 0 18px rgba(147, 197, 253, 0.7);
+  transform: translateY(-1px);
+}
 
 .btn-secondary {
   padding: 8px 16px;

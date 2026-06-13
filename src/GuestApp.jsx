@@ -567,19 +567,45 @@ export default function GuestApp() {
           <button
             onClick={() => setViewMode('map')}
             style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 8,
-              padding: '3px 10px',
-              color: '#94a3b8',
-              fontSize: 10,
+              // A rich, multi-stop dark gradient that adds depth and mimics a premium metallic panel
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', 
+              
+              // An intense cyber-blue border that mimics a glowing circuit accent
+              border: '1px solid #38bdf8', 
+              borderRadius: 6,
+              
+              // Increased padding slightly for an easier, distinct interactive tap area
+              padding: '3px 10px', 
+              color: '#38bdf8', // Made the text itself match the neon blue theme for a uniform HUD element
+              fontSize: 11, 
               fontFamily: "'Rajdhani', sans-serif",
               fontWeight: 700,
-              letterSpacing: 1,
+              letterSpacing: '1.5px', 
               cursor: 'pointer',
               textTransform: 'uppercase',
+              
+              // Double layered shadow: crisp internal button depth + external neon atmospheric aura
+              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 15px rgba(56, 189, 248, 0.35)', 
+              
+              // Alignment flex to keep the new icon and text perfectly balanced
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              
+              transition: 'all 0.2s ease-in-out',
             }}
-          >⬛ MAP</button>
+            // Interactive hover style logic can be added, but this base makes it stand out immediately
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 22px rgba(56, 189, 248, 0.6)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #27354d 0%, #111a2e 100%)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 15px rgba(56, 189, 248, 0.35)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)';
+            }}
+          >
+            <span style={{ fontSize: '13px', filter: 'drop-shadow(0 0 4px #38bdf8)' }}>🗺️</span> MAP
+          </button>
         </div>
       ) : (
         /* Normal map mode: full panel */
