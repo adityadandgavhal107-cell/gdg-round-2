@@ -50,15 +50,147 @@ export default function SensorSimPanel({ socket }) {
 
   const feedRef = useRef(null);
 
+  // Web Serial API states/refs
+  const [isWebConnected, setIsWebConnected]   = useState(false);
+  const webPortRef = useRef(null);
+  const webReaderRef = useRef(null);
+
+  // Helper helper to parse Arduino serial messages
+  const parseArduinoLine = (line) => {
+    const l = line.trim();
+    if (l.includes('FIRE DETECTED'))  return 'fire';
+    if (l.includes('SMOKE DETECTED')) return 'smoke';
+    return 'normal';
+  };
+
+  // ── Web Serial API Connection handlers ──────────────────────────────────────
+  const connectWebSerial = async () => {
+    if (!('serial' in navigator)) {
+      alert('Web Serial API is not supported in this browser. Please use Chrome, Edge, or Opera.');
+      return;
+    }
+
+    try {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      webPortRef.current = port;
+      setIsWebConnected(true);
+      setArduinoStatus('connected');
+
+      const textDecoder = new TextDecoderStream();
+      port.readable.pipeTo(textDecoder.writable).catch(err => {
+        console.error('Web Serial stream pipe error:', err);
+      });
+      const reader = textDecoder.readable.getReader();
+      webReaderRef.current = reader;
+
+      let buffer = '';
+
+      // Async read loop
+      (async () => {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += value;
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep partial line in buffer
+
+            for (const line of lines) {
+              const cleanLine = line.trim();
+              if (!cleanLine || cleanLine === '------------------------') continue;
+
+              const parsed = parseArduinoLine(cleanLine);
+              const ts = new Date().toLocaleTimeString();
+
+              // Update local feed state
+              setArduinoFeed(prev => [{ ts, raw: cleanLine, parsed, roomId: ARDUINO_ROOM_ID }, ...prev].slice(0, 12));
+
+              // Update UI visual state
+              setSensorStates(prev => ({ ...prev, [ARDUINO_ROOM_ID]: parsed }));
+
+              // Propagate hazard event via socket to backend
+              if (socket?.connected) {
+                if (parsed === 'fire') {
+                  socket.emit('detection:manual', {
+                    roomId: ARDUINO_ROOM_ID,
+                    type: 'fire',
+                    confidence: 0.98,
+                    source: 'arduino_serial',
+                  });
+                } else if (parsed === 'smoke') {
+                  socket.emit('detection:manual', {
+                    roomId: ARDUINO_ROOM_ID,
+                    type: 'smoke',
+                    confidence: 0.75,
+                    source: 'arduino_serial',
+                  });
+                } else {
+                  socket.emit('alert:resolved', {
+                    roomId: ARDUINO_ROOM_ID,
+                    clearedBy: 'arduino_serial',
+                  });
+                  // Also set it back to normal locally
+                  setSensorStates(prev => ({ ...prev, [ARDUINO_ROOM_ID]: 'normal' }));
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error in Web Serial read loop:', err);
+        } finally {
+          reader.releaseLock();
+          try {
+            await port.close();
+          } catch (e) {
+            console.error('Error closing serial port:', e);
+          }
+          webPortRef.current = null;
+          webReaderRef.current = null;
+          setIsWebConnected(false);
+          setArduinoStatus('offline');
+        }
+      })();
+
+    } catch (err) {
+      console.error('Failed to open Web Serial port:', err);
+      setArduinoStatus('error');
+    }
+  };
+
+  const disconnectWebSerial = async () => {
+    try {
+      if (webReaderRef.current) {
+        await webReaderRef.current.cancel();
+      }
+    } catch (err) {
+      console.error('Error during Web Serial disconnect:', err);
+    }
+  };
+
+  // Cleanup Web Serial on unmount
+  useEffect(() => {
+    return () => {
+      if (webReaderRef.current) {
+        webReaderRef.current.cancel().catch(() => {});
+      }
+    };
+  }, []);
+
   // ── Socket listeners ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
     const onArduinoStatus = ({ status, port }) => {
+      // Ignore backend status if browser Web Serial connection is active
+      if (webPortRef.current) return;
       setArduinoStatus(status);
     };
 
     const onArduinoReading = ({ raw, parsed, roomId }) => {
+      // Ignore backend readings if browser Web Serial connection is active
+      if (webPortRef.current) return;
       const ts = new Date().toLocaleTimeString();
       const line = { ts, raw, parsed, roomId };
       setArduinoFeed(prev => [line, ...prev].slice(0, 12));
@@ -162,26 +294,57 @@ export default function SensorSimPanel({ socket }) {
           </div>
         </div>
 
-        {/* Arduino connection badge */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: 'rgba(255,255,255,0.05)',
-          border: `1px solid ${statusDot.color}44`,
-          borderRadius: 10, padding: '8px 14px',
-        }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: statusDot.color,
-            boxShadow: `0 0 8px ${statusDot.color}`,
-            display: 'inline-block',
-            animation: statusDot.pulse ? 'sensorPulse 1.4s ease-in-out infinite' : 'none',
-          }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: statusDot.color, letterSpacing: 1 }}>
-            Arduino {statusDot.label}
-          </span>
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
-            COM3 · 9600 baud
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Web Serial Connect Button */}
+          {('serial' in navigator) && (
+            <button
+              onClick={isWebConnected ? disconnectWebSerial : connectWebSerial}
+              style={{
+                background: isWebConnected ? 'rgba(255, 68, 68, 0.15)' : 'rgba(0, 180, 255, 0.15)',
+                border: `1px solid ${isWebConnected ? '#ff4444' : '#00b4ff'}55`,
+                color: isWebConnected ? '#ff4444' : '#00b4ff',
+                borderRadius: 10,
+                padding: '8px 14px',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                letterSpacing: 0.5,
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = isWebConnected ? 'rgba(255, 68, 68, 0.25)' : 'rgba(0, 180, 255, 0.25)';
+                e.currentTarget.style.borderColor = isWebConnected ? '#ff4444' : '#00b4ff';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = isWebConnected ? 'rgba(255, 68, 68, 0.15)' : 'rgba(0, 180, 255, 0.15)';
+                e.currentTarget.style.borderColor = `${isWebConnected ? '#ff4444' : '#00b4ff'}55`;
+              }}
+            >
+              {isWebConnected ? '🔌 Disconnect Web Serial' : '🔌 Connect Web Serial'}
+            </button>
+          )}
+
+          {/* Arduino connection badge */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'rgba(255,255,255,0.05)',
+            border: `1px solid ${statusDot.color}44`,
+            borderRadius: 10, padding: '8px 14px',
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: statusDot.color,
+              boxShadow: `0 0 8px ${statusDot.color}`,
+              display: 'inline-block',
+              animation: statusDot.pulse ? 'sensorPulse 1.4s ease-in-out infinite' : 'none',
+            }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: statusDot.color, letterSpacing: 1 }}>
+              Arduino {statusDot.label}
+            </span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
+              {isWebConnected ? 'Browser Web Serial' : 'COM3 · 9600 baud'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -511,5 +674,4 @@ export default function SensorSimPanel({ socket }) {
         }
       `}</style>
     </div>
-  );
-}
+  );}
