@@ -360,56 +360,56 @@ GitHub
 
 ```plaintext
 backend/
-├── database.py
-├── main.py
-├── models.py
-├── schemas.py
-├── fireguard.db
-└── requirements.txt
+├── database.py          # DB setup
+├── main.py              # API entry
+├── models.py            # DB models
+├── schemas.py           # API schemas
+├── fireguard.db         # SQLite DB
+└── requirements.txt     # Dependencies
 
 src/
 ├── ai/
-│   ├── DetectionOverlay.js
-│   └── MockDetector.js
+│   ├── DetectionOverlay.js    # Fire overlay
+│   └── MockDetector.js        # Fire simulation
 │
 ├── components/
-│   ├── AlertPanel.jsx
-│   ├── LandingPage.jsx
-│   ├── Sidebar.jsx
-│   ├── TopBar.jsx
-│   └── PersistentAlertOverlay.jsx
+│   ├── AlertPanel.jsx         # Alerts UI
+│   ├── LandingPage.jsx        # Home page
+│   ├── Sidebar.jsx            # Navigation
+│   ├── TopBar.jsx             # Header
+│   └── PersistentAlertOverlay.jsx # Emergency overlay
 │
 ├── core/
-│   ├── AlertEngine.js
-│   ├── EvacuationEngine.js
-│   ├── EventBus.js
-│   ├── LocationEstimator.js
-│   ├── SimulationEngine.js
-│   ├── VoiceAssistant.js
-│   └── WebRTCManager.js
+│   ├── AlertEngine.js         # Alert logic
+│   ├── EvacuationEngine.js    # Evacuation logic
+│   ├── EventBus.js            # Event manager
+│   ├── LocationEstimator.js   # Room tracking
+│   ├── SimulationEngine.js    # Fire simulator
+│   ├── VoiceAssistant.js      # Voice alerts
+│   └── WebRTCManager.js       # Camera streams
 │
 ├── data/
-│   ├── guests.js
-│   └── hotel.js
+│   ├── guests.js              # Guest data
+│   └── hotel.js               # Hotel data
 │
 ├── views/
-│   ├── CameraGrid.jsx
-│   ├── DAFTeamView.jsx
-│   ├── GuestDashboard.jsx
-│   ├── HotelView3D.jsx
-│   ├── LoginPortal.jsx
-│   ├── NavigationView.jsx
-│   └── SensorSimPanel.jsx
+│   ├── CameraGrid.jsx         # Camera dashboard
+│   ├── DAFTeamView.jsx        # DAF panel
+│   ├── GuestDashboard.jsx     # Guest panel
+│   ├── HotelView3D.jsx        # 3D hotel map
+│   ├── LoginPortal.jsx        # Login page
+│   ├── NavigationView.jsx     # Route view
+│   └── SensorSimPanel.jsx     # Sensor monitor
 │
 ├── voice-guidance/
-│   ├── RouteToSpeech.js
-│   ├── useVoiceGuidance.js
-│   └── VoiceGuidanceService.js
+│   ├── RouteToSpeech.js       # Route voice
+│   ├── useVoiceGuidance.js    # Voice hook
+│   └── VoiceGuidanceService.js # Voice service
 │
-├── App.jsx
-├── GuestApp.jsx
-├── DAFApp.jsx
-└── main.jsx
+├── App.jsx                    # Admin app
+├── GuestApp.jsx               # Guest app
+├── DAFApp.jsx                 # DAF app
+└── main.jsx                   # Frontend entry
 ```
 
 ---
