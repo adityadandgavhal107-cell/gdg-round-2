@@ -38,6 +38,10 @@ https://fireguard-frontend-28922587921.asia-south1.run.app
 
 https://fireguard-backend-28922587921.asia-south1.run.app
 
+### Backend API
+
+https://fireguard-signaling-28922587921.asia-south1.run.app
+
 ---
 
 # ✨ Core Features
